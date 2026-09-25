@@ -10,6 +10,7 @@ builder.Services.AddOpenApi();
 builder.Services.ConfigureCors();
 builder.Services.ConfigureAuthentication(builder.Configuration);
 builder.Services.ConfigureScopedService();
+builder.Services.ConfigureValidation();
 
 var app = builder.Build();
 

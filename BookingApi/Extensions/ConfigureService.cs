@@ -1,6 +1,7 @@
 using System.Text;
 using BookingApi.Data;
 using BookingApi.Service;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -56,6 +57,12 @@ public static class ConfigureService
         {
             services.AddScoped<IAuthService, AuthService>();
             services.AddScoped<IResourceService, ResourceService>();
+            services.AddScoped<IBookingService, BookingService>();
+        }
+
+        public void ConfigureValidation()
+        {
+            services.AddValidatorsFromAssemblyContaining<Program>();
         }
     }
 }
