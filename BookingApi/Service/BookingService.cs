@@ -9,41 +9,65 @@ public class BookingService(AppDbContext context) : IBookingService
     public async Task<(BookingCreationResult result, BookingResponseDto? booking)> CreateAsync(CreateBookingDto dto,
         int userId, CancellationToken token)
     {
-        var resource = await context.Resources.FirstOrDefaultAsync(b => b.Id == dto.ResourceId, token);
-        if (resource == null) return (BookingCreationResult.ResourceNotFound, null);
-        if (!resource.IsActive) return (BookingCreationResult.ResourceInactive, null);
+        await using var transaction = await context.Database.BeginTransactionAsync(token);
 
-        // when will the bookings never overlap
-        // new booking S1 and E1
-        // existing booking S2 and E2
-        // condition -> S2 >= E1 || E2 >= S1
-        // so overlapping will be negation ->  !(S2 >= E1 || E2 <= S1) => E1 > S2 && S1 < E2
-        var overlappingCounts = await context.Bookings.Where(b =>
-                b.Status != BookingStatus.Cancelled
-                && b.ResourceId == resource.Id
-                && dto.EndTime > b.StartTime && dto.StartTime < b.EndTime)
-            .CountAsync(token);
-
-        if (overlappingCounts >= resource.Capacity)
+        try
         {
-            return (BookingCreationResult.NoCapacity, null);
+            var resource =
+                await context.Resources.FromSqlInterpolated(
+                        $"SELECT * FROM resources WHERE id = {dto.ResourceId} FOR UPDATE")
+                    .FirstOrDefaultAsync(token);
+            if (resource == null)
+            {
+                await transaction.RollbackAsync(token);
+                return (BookingCreationResult.ResourceNotFound, null);
+            }
+
+            if (!resource.IsActive)
+            {
+                await transaction.RollbackAsync(token);
+                return (BookingCreationResult.ResourceInactive, null);
+            }
+
+            // when will the bookings never overlap
+            // new booking S1 and E1
+            // existing booking S2 and E2
+            // condition -> S2 >= E1 || E2 >= S1
+            // so overlapping will be negation ->  !(S2 >= E1 || E2 <= S1) => E1 > S2 && S1 < E2
+            var overlappingCounts = await context.Bookings.Where(b =>
+                    b.Status != BookingStatus.Cancelled
+                    && b.ResourceId == resource.Id
+                    && dto.EndTime > b.StartTime && dto.StartTime < b.EndTime)
+                .CountAsync(token);
+
+            if (overlappingCounts >= resource.Capacity)
+            {
+                await transaction.RollbackAsync(token);
+                return (BookingCreationResult.NoCapacity, null);
+            }
+
+            var newBooking = new BookingEntity
+            {
+                ResourceId = resource.Id,
+                StartTime = dto.StartTime,
+                EndTime = dto.EndTime,
+                Status = BookingStatus.Confirmed,
+                UserId = userId,
+            };
+
+            context.Bookings.Add(newBooking);
+            await context.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+
+            return (BookingCreationResult.Success,
+                new BookingResponseDto(newBooking.Id, newBooking.StartTime, newBooking.EndTime, newBooking.ResourceId,
+                    newBooking.Status, newBooking.UserId));
         }
-
-        var newBooking = new BookingEntity
+        catch
         {
-            ResourceId = resource.Id,
-            StartTime = dto.StartTime,
-            EndTime = dto.EndTime,
-            Status = BookingStatus.Confirmed,
-            UserId = userId,
-        };
-
-        context.Bookings.Add(newBooking);
-        await context.SaveChangesAsync(token);
-
-        return (BookingCreationResult.Success,
-            new BookingResponseDto(newBooking.Id, newBooking.StartTime, newBooking.EndTime, newBooking.ResourceId,
-                newBooking.Status, newBooking.UserId));
+            await transaction.RollbackAsync(token);
+            throw;
+        }
     }
 
     public async Task<BookingResponseDto?> GetByIdAsync(int id, bool isAdmin, int userId, CancellationToken token = default)

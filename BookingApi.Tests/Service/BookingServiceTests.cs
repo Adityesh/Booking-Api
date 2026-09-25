@@ -1,16 +1,18 @@
 using BookingApi.Data;
 using BookingApi.Dto.Booking;
 using BookingApi.Service;
+using BookingApi.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookingApi.Tests.Service;
 
-public class BookingServiceTests
+public class BookingServiceTests(PostgresFixture fixture) : IClassFixture<PostgresFixture>
 {
-    private static AppDbContext CreateContext()
+    private AppDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .UseNpgsql(fixture.ConnectionString)
+            .UseSnakeCaseNamingConvention()
             .Options;
         return new AppDbContext(options);
     }
@@ -26,9 +28,15 @@ public class BookingServiceTests
         var context = CreateContext();
         var startTime = DateTime.UtcNow;
         var endTime = DateTime.UtcNow.AddHours(1);
+        var user = new UserEntity()
+        {
+            IsActive = true,
+            Role = UserRole.Admin,
+            Username = "Testusername"
+        };
+
         var resource = new ResourceEntity()
         {
-            Id = 1,
             Capacity = 2,
             IsActive = true,
             Name = "Test Resource",
@@ -39,23 +47,22 @@ public class BookingServiceTests
         [
             new()
             {
-                Id = 1,
                 StartTime = startTime,
                 EndTime = endTime,
-                ResourceId = resource.Id,
-                UserId = 1,
-                Status = BookingStatus.Confirmed
+                Resource = resource,
+                Status = BookingStatus.Confirmed,
+                User = user,
             },
             new()
             {
-                Id = 2,
                 StartTime = startTime,
                 EndTime = endTime,
-                ResourceId = resource.Id,
-                UserId = 1,
-                Status = BookingStatus.Confirmed
+                Resource = resource,
+                Status = BookingStatus.Confirmed,
+                User = user,
             }
         ];
+        context.Users.Add(user);
         context.Resources.Add(resource);
         context.Bookings.AddRange(bookings);
         await context.SaveChangesAsync();
@@ -79,9 +86,16 @@ public class BookingServiceTests
         var context = CreateContext();
         var startTime = DateTime.UtcNow;
         var endTime = DateTime.UtcNow.AddHours(1);
+
+        var user = new UserEntity()
+        {
+            IsActive = true,
+            Role = UserRole.Admin,
+            Username = "Testusername"
+        };
+
         var resource = new ResourceEntity()
         {
-            Id = 1,
             Capacity = 1,
             IsActive = true,
             Name = "Test Resource",
@@ -91,21 +105,21 @@ public class BookingServiceTests
 
         var booking = new BookingEntity()
         {
-            Id = 1,
             StartTime = startTime,
             EndTime = endTime,
-            ResourceId = resource.Id,
-            UserId = 1,
-            Status = BookingStatus.Confirmed
+            Resource = resource,
+            Status = BookingStatus.Confirmed,
+            User = user
         };
 
+        context.Users.Add(user);
         context.Resources.Add(resource);
         context.Bookings.Add(booking);
         await context.SaveChangesAsync();
 
         var bookingService = new BookingService(context);
         var createDto = new CreateBookingDto(startTime.AddHours(2), endTime.AddHours(2), resource.Id);
-        var result = await bookingService.CreateAsync(createDto, 1, CancellationToken.None);
+        var result = await bookingService.CreateAsync(createDto, booking.UserId, CancellationToken.None);
 
         Assert.Equal(BookingCreationResult.Success, result.result);
         Assert.NotNull(result.booking);
@@ -120,9 +134,16 @@ public class BookingServiceTests
         var context = CreateContext();
         var startTime = DateTime.UtcNow.AddHours(1);
         var endTime = DateTime.UtcNow.AddHours(2);
+
+        var user = new UserEntity()
+        {
+            IsActive = true,
+            Role = UserRole.Admin,
+            Username = "Testusername"
+        };
+
         var resource = new ResourceEntity()
         {
-            Id = 1,
             Capacity = 1,
             IsActive = true,
             Name = "Test Resource",
@@ -132,20 +153,20 @@ public class BookingServiceTests
 
         var booking = new BookingEntity()
         {
-            Id = 1,
             StartTime = startTime,
             EndTime = endTime,
-            ResourceId = resource.Id,
-            UserId = 1,
-            Status = BookingStatus.Confirmed
+            Resource = resource,
+            Status = BookingStatus.Confirmed,
+            User = user,
         };
 
+        context.Users.Add(user);
         context.Resources.Add(resource);
         context.Bookings.Add(booking);
         await context.SaveChangesAsync();
 
         var bookingService = new BookingService(context);
-        var result = await bookingService.CancelAsync(booking.Id, 1, false, CancellationToken.None);
+        var result = await bookingService.CancelAsync(booking.Id, booking.UserId, false, CancellationToken.None);
 
         Assert.Equal(BookingCancellationResult.TooCloseToStartTime, result);
     }
@@ -159,9 +180,16 @@ public class BookingServiceTests
         var context = CreateContext();
         var startTime = DateTime.UtcNow.AddHours(1);
         var endTime = DateTime.UtcNow.AddHours(2);
+
+        var user = new UserEntity()
+        {
+            IsActive = true,
+            Role = UserRole.Admin,
+            Username = "Testusername"
+        };
+
         var resource = new ResourceEntity()
         {
-            Id = 1,
             Capacity = 2,
             IsActive = true,
             Name = "Test Resource",
@@ -171,20 +199,20 @@ public class BookingServiceTests
 
         var booking = new BookingEntity()
         {
-            Id = 1,
             StartTime = startTime,
             EndTime = endTime,
-            ResourceId = resource.Id,
-            UserId = 1,
-            Status = BookingStatus.Confirmed
+            Resource = resource,
+            Status = BookingStatus.Confirmed,
+            User = user
         };
 
+        context.Users.Add(user);
         context.Resources.Add(resource);
         context.Bookings.Add(booking);
         await context.SaveChangesAsync();
 
         var bookingService = new BookingService(context);
-        var result = await bookingService.CancelAsync(booking.Id, 1, true, CancellationToken.None);
+        var result = await bookingService.CancelAsync(booking.Id, booking.UserId, true, CancellationToken.None);
 
         Assert.Equal(BookingCancellationResult.Success, result);
     }
