@@ -26,10 +26,10 @@ namespace BookingApi.Controllers
             return result switch
             {
                 BookingCreationResult.Success => CreatedAtAction(nameof(GetById), new { id = booking!.Id }, booking),
-                BookingCreationResult.NoCapacity => Conflict("This resource is fully booked for the requested time."),
+                BookingCreationResult.AlreadyWaitListed => Conflict("User is already in the waitlist."),
                 BookingCreationResult.ResourceInactive => NotFound("Resource not found."),
                 BookingCreationResult.ResourceNotFound => NotFound("Resource not found."),
-                _ => Problem()
+                BookingCreationResult.WaitListed => Accepted(value: new { message = "Resource is fully booked. You've been added to the waitlist." }),                _ => Problem()
             };
         }
 

@@ -11,6 +11,7 @@ builder.Services.ConfigureCors();
 builder.Services.ConfigureAuthentication(builder.Configuration);
 builder.Services.ConfigureScopedService();
 builder.Services.ConfigureValidation();
+builder.Services.ConfigureBackgroundServices();
 
 var app = builder.Build();
 

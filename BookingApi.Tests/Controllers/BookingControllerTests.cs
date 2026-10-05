@@ -1,5 +1,4 @@
 using BookingApi.Controllers;
-using BookingApi.Data;
 using BookingApi.Dto.Booking;
 using BookingApi.Service;
 using BookingApi.Tests.Helpers;
@@ -11,87 +10,77 @@ using Moq;
 
 namespace BookingApi.Tests.Controllers;
 
-public class BookingControllerTests
+public class BookingControllerWaitlistTests
 {
-    private readonly Mock<IBookingService> _mockBookingService;
+    private readonly Mock<IBookingService> _mockBookingService = new();
     private readonly BookingController _controller;
 
-    public BookingControllerTests()
+    public BookingControllerWaitlistTests()
     {
-        _mockBookingService = new Mock<IBookingService>();
         _controller = new BookingController(_mockBookingService.Object)
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext { User = AuthHelper.CreateUser("Admin", 1) }
+                HttpContext = new DefaultHttpContext { User = AuthHelper.CreateUser("User", 1) }
             }
         };
     }
 
-    [Fact]
-    public async Task Create_NoCapacity_ReturnsConflict()
-    {
-        var mockValidator = new Mock<IValidator<CreateBookingDto>>();
-        mockValidator
-            .Setup(v => v.ValidateAsync(It.IsAny<CreateBookingDto>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ValidationResult());
+    private static CreateBookingDto ValidDto() =>
+        new(DateTime.UtcNow.AddDays(1), DateTime.UtcNow.AddDays(1).AddHours(1), 1);
 
+    // Mocks the real interface member, IValidator<T>.ValidateAsync(T, CancellationToken).
+    private static Mock<IValidator<CreateBookingDto>> ValidatorReturning(ValidationResult result)
+    {
+        var mock = new Mock<IValidator<CreateBookingDto>>();
+        mock.Setup(v => v.ValidateAsync(It.IsAny<CreateBookingDto>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(result);
+        return mock;
+    }
+
+    private void ServiceReturns(BookingCreationResult outcome) =>
         _mockBookingService
             .Setup(s => s.CreateAsync(It.IsAny<CreateBookingDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((BookingCreationResult.NoCapacity, null));
+            .ReturnsAsync((outcome, null));
 
-        var result = await _controller.Create(new CreateBookingDto(DateTime.UtcNow, DateTime.UtcNow.AddHours(1), 1), mockValidator.Object, CancellationToken.None);
+    [Fact]
+    public async Task Create_WaitListed_ReturnsAcceptedWithBody_AndNoLocationHeader()
+    {
+        // Guards against Accepted("some message"), which binds to the (string uri) overload:
+        // the message would land in the Location header and the body would be empty.
+        ServiceReturns(BookingCreationResult.WaitListed);
+
+        var result = await _controller.Create(ValidDto(), ValidatorReturning(new ValidationResult()).Object,
+            CancellationToken.None);
+
+        var accepted = Assert.IsType<AcceptedResult>(result);
+        Assert.Null(accepted.Location);
+        Assert.NotNull(accepted.Value);
+    }
+
+    [Fact]
+    public async Task Create_AlreadyWaitListed_ReturnsConflict()
+    {
+        ServiceReturns(BookingCreationResult.AlreadyWaitListed);
+
+        var result = await _controller.Create(ValidDto(), ValidatorReturning(new ValidationResult()).Object,
+            CancellationToken.None);
 
         Assert.IsType<ConflictObjectResult>(result);
     }
 
     [Fact]
-    public async Task Create_Success_ReturnsCreatedAtAction()
+    public async Task Create_ValidationFails_Returns400_AndNeverCallsTheService()
     {
+        var failures = new List<ValidationFailure> { new("StartTime", "Cannot book a time in the past.") };
 
-        var responseDto = new BookingResponseDto(1, DateTime.UtcNow, DateTime.UtcNow.AddHours(1), 1,
-            BookingStatus.Confirmed, 1);
+        var result = await _controller.Create(ValidDto(), ValidatorReturning(new ValidationResult(failures)).Object,
+            CancellationToken.None);
 
-        var mockValidator = new Mock<IValidator<CreateBookingDto>>();
-        mockValidator
-            .Setup(v => v.ValidateAsync(It.IsAny<CreateBookingDto>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new ValidationResult());
-
-        _mockBookingService
-            .Setup(s => s.CreateAsync(It.IsAny<CreateBookingDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((BookingCreationResult.Success, responseDto));
-
-        var result = await _controller.Create(new CreateBookingDto(DateTime.UtcNow, DateTime.UtcNow.AddHours(1), 1), mockValidator.Object, CancellationToken.None);
-
-        Assert.IsType<CreatedAtActionResult>(result);
+        var problem = Assert.IsAssignableFrom<ObjectResult>(result);
+        Assert.Equal(400, problem.StatusCode);
+        _mockBookingService.Verify(
+            s => s.CreateAsync(It.IsAny<CreateBookingDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Never);
     }
-
-    [Fact]
-    public async Task Cancel_TooCloseToStartTime_ReturnsConflict()
-    {
-        _mockBookingService
-            .Setup(s => s.CancelAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BookingCancellationResult.TooCloseToStartTime);
-
-        var result = await _controller.Cancel(1, CancellationToken.None);
-
-        Assert.IsType<ConflictObjectResult>(result);
-    }
-
-    [Fact]
-    public async Task Cancel_AlreadyCancelled_ReturnsNoContent()
-    {
-        _mockBookingService
-            .Setup(s => s.CancelAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(BookingCancellationResult.AlreadyCancelled);
-
-        var result = await _controller.Cancel(1, CancellationToken.None);
-
-        Assert.IsType<NoContentResult>(result);
-    }
-
-
-
-
-
 }

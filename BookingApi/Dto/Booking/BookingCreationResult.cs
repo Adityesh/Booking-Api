@@ -5,5 +5,6 @@ public enum BookingCreationResult
     Success,
     ResourceNotFound,
     ResourceInactive,
-    NoCapacity
+    WaitListed,
+    AlreadyWaitListed
 }

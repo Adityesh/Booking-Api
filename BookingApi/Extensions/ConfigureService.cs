@@ -1,5 +1,6 @@
 using System.Text;
 using BookingApi.Data;
+using BookingApi.Jobs;
 using BookingApi.Service;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -63,6 +64,11 @@ public static class ConfigureService
         public void ConfigureValidation()
         {
             services.AddValidatorsFromAssemblyContaining<Program>();
+        }
+
+        public void ConfigureBackgroundServices()
+        {
+            services.AddHostedService<WaitlistExpirationService>();
         }
     }
 }
