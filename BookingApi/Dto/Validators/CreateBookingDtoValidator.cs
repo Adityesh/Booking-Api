@@ -1,7 +1,7 @@
 using BookingApi.Dto.Booking;
 using FluentValidation;
 
-namespace BookingApi.Dto;
+namespace BookingApi.Dto.Validators;
 
 public class CreateBookingDtoValidator : AbstractValidator<CreateBookingDto>
 {
