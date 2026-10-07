@@ -42,6 +42,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasForeignKey(a => a.UserId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        modelBuilder.Entity<AuditLogEntryEntity>()
+            .HasIndex(x => x.Timestamp);
+
         modelBuilder.Entity<BookingEntity>()
             .HasOne(b => b.Resource)
             .WithMany(r => r.Bookings)

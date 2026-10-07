@@ -7,8 +7,8 @@ public class AuditLogEntryEntity
     public int EntityId { get; set; }
     public ActionType Action { get; set; }
 
-    public int UserId { get; set; }
-    public UserEntity User { get; set; } = null!;
+    public int? UserId { get; set; }
+    public UserEntity? User { get; set; }
 }
 
 public enum ActionType
@@ -18,6 +18,7 @@ public enum ActionType
     WaitlistEntryCreated,
     WaitlistEntryPromoted,
     WaitlistEntryExpired,
+    WaitlistEntryWithdrawn,
     ResourceCreated,
     ResourceUpdated,
     ResourceDeleted
