@@ -25,16 +25,23 @@ public class WaitlistServiceTests(PostgresFixture fixture)
         return new AppDbContext(options);
     }
 
+    // The real audit service on the SAME context, exactly as DI wires it per request.
+    private static BookingService NewBookingService(AppDbContext context) =>
+        new(context, new AuditLogService(context));
+
+    private static WaitlistService NewWaitlistService(AppDbContext context) =>
+        new(context, new AuditLogService(context));
+
     // ---------- seeding helpers ----------
 
-    private async Task<UserEntity> SeedUserAsync()
+    private async Task<UserEntity> SeedUserAsync(UserRole role = UserRole.User)
     {
         await using var context = CreateContext();
         var user = new UserEntity
         {
             Username = $"user_{Guid.NewGuid():N}",
             PasswordHash = "not-a-real-hash",
-            Role = UserRole.User,
+            Role = role,
             IsActive = true
         };
         context.Users.Add(user);
@@ -97,19 +104,26 @@ public class WaitlistServiceTests(PostgresFixture fixture)
     private async Task<WithdrawWaitlistResult> WithdrawAsync(int entryId, int userId)
     {
         await using var context = CreateContext();
-        return await new WaitlistService(context).WithdrawAsync(entryId, userId, CancellationToken.None);
+        return await NewWaitlistService(context).WithdrawAsync(entryId, userId, CancellationToken.None);
     }
 
     private async Task<IList<WaitlistEntryResponseDto>> GetMineAsync(int userId, WaitlistStatus? status = null)
     {
         await using var context = CreateContext();
-        return await new WaitlistService(context).GetMineAsync(userId, status, CancellationToken.None);
+        return await NewWaitlistService(context).GetMineAsync(userId, status, CancellationToken.None);
     }
 
     private async Task<WaitlistEntryEntity> GetEntryAsync(int id)
     {
         await using var context = CreateContext();
         return await context.WaitlistEntries.AsNoTracking().SingleAsync(w => w.Id == id);
+    }
+
+    // EntityId is shared across entity types, so entries are always matched on the action as well as the id.
+    private async Task<int> CountEntriesAsync(ActionType action, int entityId)
+    {
+        await using var context = CreateContext();
+        return await context.AuditLogEntries.CountAsync(e => e.Action == action && e.EntityId == entityId);
     }
 
     // =====================================================================================
@@ -257,7 +271,7 @@ public class WaitlistServiceTests(PostgresFixture fixture)
 
         await using (var context = CreateContext())
         {
-            var (outcome, _) = await new BookingService(context).CreateAsync(dto, alice.Id, CancellationToken.None);
+            var (outcome, _) = await NewBookingService(context).CreateAsync(dto, alice.Id, CancellationToken.None);
             Assert.Equal(BookingCreationResult.WaitListed, outcome);
         }
 
@@ -266,7 +280,7 @@ public class WaitlistServiceTests(PostgresFixture fixture)
 
         await using (var context = CreateContext())
         {
-            var (outcome, _) = await new BookingService(context).CreateAsync(dto, alice.Id, CancellationToken.None);
+            var (outcome, _) = await NewBookingService(context).CreateAsync(dto, alice.Id, CancellationToken.None);
             Assert.Equal(BookingCreationResult.WaitListed, outcome);
         }
 
@@ -294,6 +308,7 @@ public class WaitlistServiceTests(PostgresFixture fixture)
     {
         var owner = await SeedUserAsync();
         var alice = await SeedUserAsync();
+        var admin = await SeedUserAsync(UserRole.Admin);   // a real user: the cancel is audited with the actor's id
         var resource = await SeedResourceAsync(capacity: 1);
         var booking = await SeedBookingAsync(resource.Id, owner.Id, At(14), At(15));
         var entry = await SeedEntryAsync(resource.Id, alice.Id, At(14), At(15), DateTime.UtcNow.AddMinutes(-5));
@@ -306,15 +321,15 @@ public class WaitlistServiceTests(PostgresFixture fixture)
         {
             await gate.Task;
             await using var context = CreateContext();
-            // Admin, so the 2-hour window doesn't apply; the user id is irrelevant for admins.
-            return await new BookingService(context).CancelAsync(booking.Id, 0, true, CancellationToken.None);
+            // Admin, so the 2-hour window doesn't apply.
+            return await NewBookingService(context).CancelAsync(booking.Id, admin.Id, true, CancellationToken.None);
         });
 
         var withdrawTask = Task.Run(async () =>
         {
             await gate.Task;
             await using var context = CreateContext();
-            return await new WaitlistService(context).WithdrawAsync(entry.Id, alice.Id, CancellationToken.None);
+            return await NewWaitlistService(context).WithdrawAsync(entry.Id, alice.Id, CancellationToken.None);
         });
 
         gate.SetResult();
@@ -329,19 +344,31 @@ public class WaitlistServiceTests(PostgresFixture fixture)
             .Where(b => b.ResourceId == resource.Id && b.UserId == alice.Id && b.Status == BookingStatus.Confirmed)
             .ToListAsync();
 
+        var withdrawnLogged = await CountEntriesAsync(ActionType.WaitlistEntryWithdrawn, entry.Id);
+        var promotedLogged = await CountEntriesAsync(ActionType.WaitlistEntryPromoted, entry.Id);
+
         // Either side may win; both outcomes are valid as long as the end state is consistent.
         if (withdrawResult == WithdrawWaitlistResult.Success)
         {
             // Withdraw got the lock first: Alice left, so promotion had nobody to promote.
             Assert.Equal(WaitlistStatus.Withdrawn, finalEntry.Status);
             Assert.Empty(alicesBookings);
+
+            // The audit log tells the same story: one withdrawal, no promotion.
+            Assert.Equal(1, withdrawnLogged);
+            Assert.Equal(0, promotedLogged);
         }
         else
         {
             // Promotion got the lock first: Alice was promoted, so withdrawing is too late.
             Assert.Equal(WithdrawWaitlistResult.NotWaiting, withdrawResult);
             Assert.Equal(WaitlistStatus.Promoted, finalEntry.Status);
-            Assert.Single(alicesBookings);
+            var alicesBooking = Assert.Single(alicesBookings);
+
+            // One promotion, one booking created for it, and no withdrawal: never both, never neither.
+            Assert.Equal(1, promotedLogged);
+            Assert.Equal(0, withdrawnLogged);
+            Assert.Equal(1, await CountEntriesAsync(ActionType.BookingCreated, alicesBooking.Id));
         }
     }
 }

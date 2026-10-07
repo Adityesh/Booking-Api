@@ -25,14 +25,19 @@ public class BookingConcurrencyTests(PostgresFixture fixture)
         return new AppDbContext(options);
     }
 
-    private async Task<UserEntity> SeedUserAsync()
+    // Each racing task builds its own context AND its own audit service on that context, exactly like
+    // one HTTP request. Sharing one audit service across tasks would write entries through the wrong context.
+    private static BookingService NewBookingService(AppDbContext context) =>
+        new(context, new AuditLogService(context));
+
+    private async Task<UserEntity> SeedUserAsync(UserRole role = UserRole.User)
     {
         await using var context = CreateContext();
         var user = new UserEntity
         {
             Username = $"user_{Guid.NewGuid():N}",
             PasswordHash = "not-a-real-hash",
-            Role = UserRole.User,
+            Role = role,
             IsActive = true
         };
         context.Users.Add(user);
@@ -114,7 +119,7 @@ public class BookingConcurrencyTests(PostgresFixture fixture)
         {
             await gate.Task;
             await using var context = CreateContext();
-            var (outcome, _) = await new BookingService(context).CreateAsync(dto, user.Id, CancellationToken.None);
+            var (outcome, _) = await NewBookingService(context).CreateAsync(dto, user.Id, CancellationToken.None);
             return outcome;
         }).ToList();
 
@@ -130,6 +135,16 @@ public class BookingConcurrencyTests(PostgresFixture fixture)
             .CountAsync(b => b.ResourceId == resource.Id && b.Status == BookingStatus.Confirmed));
         Assert.Equal(requests - capacity, await verify.WaitlistEntries
             .CountAsync(w => w.ResourceId == resource.Id && w.Status == WaitlistStatus.Waiting));
+
+        // The audit log must agree with the data under the same load: one entry per booking and per waitlist
+        // entry, no more and no fewer, because each entry commits or rolls back with the action it describes.
+        var bookingIds = await verify.Bookings.Where(b => b.ResourceId == resource.Id).Select(b => b.Id).ToListAsync();
+        var entryIds = await verify.WaitlistEntries.Where(w => w.ResourceId == resource.Id).Select(w => w.Id).ToListAsync();
+
+        Assert.Equal(capacity, await verify.AuditLogEntries
+            .CountAsync(e => e.Action == ActionType.BookingCreated && bookingIds.Contains(e.EntityId)));
+        Assert.Equal(requests - capacity, await verify.AuditLogEntries
+            .CountAsync(e => e.Action == ActionType.WaitlistEntryCreated && entryIds.Contains(e.EntityId)));
     }
 
     [Fact]
@@ -141,6 +156,7 @@ public class BookingConcurrencyTests(PostgresFixture fixture)
         var firstOwner = await SeedUserAsync();
         var secondOwner = await SeedUserAsync();
         var alice = await SeedUserAsync();
+        var admin = await SeedUserAsync(UserRole.Admin);   // a real user: the cancel is audited with the actor's id
         var resource = await SeedResourceAsync(capacity: 2);
         var firstBooking = await SeedBookingAsync(resource.Id, firstOwner.Id, At(14), At(15));
         var secondBooking = await SeedBookingAsync(resource.Id, secondOwner.Id, At(14), At(15));
@@ -153,8 +169,8 @@ public class BookingConcurrencyTests(PostgresFixture fixture)
         {
             await gate.Task;
             await using var context = CreateContext();
-            // Admin, so the 2-hour window doesn't apply; the user id is irrelevant for admins.
-            return await new BookingService(context).CancelAsync(bookingId, 0, true, CancellationToken.None);
+            // Admin, so the 2-hour window doesn't apply.
+            return await NewBookingService(context).CancelAsync(bookingId, admin.Id, true, CancellationToken.None);
         }).ToList();
 
         gate.SetResult();
@@ -173,5 +189,19 @@ public class BookingConcurrencyTests(PostgresFixture fixture)
 
         Assert.Equal(WaitlistStatus.Promoted,
             (await verify.WaitlistEntries.SingleAsync(w => w.Id == entry.Id)).Status);
+
+        // Audit: both cancellations are logged against the admin, and the single promotion is logged
+        // exactly once (a double promotion would show up here as a second entry).
+        var cancelEntries = await verify.AuditLogEntries
+            .Where(e => e.Action == ActionType.BookingCancelled
+                        && (e.EntityId == firstBooking.Id || e.EntityId == secondBooking.Id))
+            .ToListAsync();
+        Assert.Equal(2, cancelEntries.Count);
+        Assert.All(cancelEntries, e => Assert.Equal(admin.Id, e.UserId));
+
+        Assert.Equal(1, await verify.AuditLogEntries
+            .CountAsync(e => e.Action == ActionType.WaitlistEntryPromoted && e.EntityId == entry.Id));
+        Assert.Equal(1, await verify.AuditLogEntries
+            .CountAsync(e => e.Action == ActionType.BookingCreated && e.EntityId == alices.Id));
     }
 }

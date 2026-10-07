@@ -1,10 +1,11 @@
 using BookingApi.Data;
+using BookingApi.Dto.AuditLog;
 using BookingApi.Dto.Waitlist;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookingApi.Service;
 
-public class WaitlistService(AppDbContext context) : IWaitlistService
+public class WaitlistService(AppDbContext context, IAuditLogService auditLogService) : IWaitlistService
 {
     public async Task<IList<WaitlistEntryResponseDto>> GetMineAsync(int userId, WaitlistStatus? status, CancellationToken token)
     {
@@ -59,6 +60,7 @@ public class WaitlistService(AppDbContext context) : IWaitlistService
             }
 
             waitlistEntry.Status = WaitlistStatus.Withdrawn;
+            auditLogService.CreateLog(new CreateAuditLogDto(id, userId, ActionType.WaitlistEntryWithdrawn));
             await context.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
             return WithdrawWaitlistResult.Success;

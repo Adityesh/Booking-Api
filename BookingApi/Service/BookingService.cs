@@ -1,10 +1,11 @@
 using BookingApi.Data;
+using BookingApi.Dto.AuditLog;
 using BookingApi.Dto.Booking;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookingApi.Service;
 
-public class BookingService(AppDbContext context) : IBookingService
+public class BookingService(AppDbContext context, IAuditLogService auditLogService) : IBookingService
 {
     public async Task<(BookingCreationResult result, BookingResponseDto? booking)> CreateAsync(CreateBookingDto dto,
         int userId, CancellationToken token)
@@ -64,6 +65,8 @@ public class BookingService(AppDbContext context) : IBookingService
 
             context.Bookings.Add(newBooking);
             await context.SaveChangesAsync(token);
+            auditLogService.CreateLog(new CreateAuditLogDto(newBooking.Id, newBooking.UserId, ActionType.BookingCreated));
+            await context.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
 
             return (BookingCreationResult.Success,
@@ -111,6 +114,7 @@ public class BookingService(AppDbContext context) : IBookingService
             }
 
             booking.Status = BookingStatus.Cancelled;
+            auditLogService.CreateLog(new CreateAuditLogDto(booking.Id, userId, ActionType.BookingCancelled));
             await context.SaveChangesAsync(token);
 
             await PromoteWaitList(booking.ResourceId, token);
@@ -158,8 +162,11 @@ public class BookingService(AppDbContext context) : IBookingService
             };
 
             context.Bookings.Add(booking);
+            await context.SaveChangesAsync(token);
+            auditLogService.CreateLog(new CreateAuditLogDto(booking.Id, booking.UserId, ActionType.BookingCreated));
 
             entry.Status = WaitlistStatus.Promoted;
+            auditLogService.CreateLog(new CreateAuditLogDto(entry.Id, entry.UserId, ActionType.WaitlistEntryPromoted));
             await context.SaveChangesAsync(token);
         }
     }
@@ -185,6 +192,8 @@ public class BookingService(AppDbContext context) : IBookingService
             CreatedAt = DateTime.UtcNow
         };
         context.WaitlistEntries.Add(waitListEntry);
+        await context.SaveChangesAsync(token);
+        auditLogService.CreateLog(new CreateAuditLogDto(waitListEntry.Id, userId, ActionType.WaitlistEntryCreated));
         await context.SaveChangesAsync(token);
         return true;
     }
