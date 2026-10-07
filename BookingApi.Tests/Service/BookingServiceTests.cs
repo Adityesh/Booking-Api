@@ -1,3 +1,4 @@
+using System.Globalization;
 using BookingApi.Data;
 using BookingApi.Dto.Booking;
 using BookingApi.Service;
@@ -44,7 +45,7 @@ public class BookingServiceTests(PostgresFixture fixture)
         {
             IsActive = true,
             Role = UserRole.Admin,
-            Username = "Testusername"
+            Username = "Testusername" + DateTime.UtcNow.ToString(CultureInfo.InvariantCulture)
         };
 
         var resource = new ResourceEntity()
@@ -138,7 +139,7 @@ public class BookingServiceTests(PostgresFixture fixture)
         {
             IsActive = true,
             Role = UserRole.Admin,
-            Username = "Testusername"
+            Username = "Testusername" + DateTime.UtcNow.ToString(CultureInfo.InvariantCulture)
         };
 
         var resource = new ResourceEntity()

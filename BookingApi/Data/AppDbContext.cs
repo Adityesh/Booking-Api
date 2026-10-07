@@ -16,6 +16,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .Property(u => u.Role)
             .HasConversion<string>();
 
+        modelBuilder.Entity<UserEntity>()
+            .HasIndex(u => u.Username)
+            .IsUnique();
+
         modelBuilder.Entity<ResourceEntity>()
             .Property(b => b.Type)
             .HasConversion<string>();

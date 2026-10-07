@@ -5,6 +5,7 @@ using BookingApi.Data;
 using BookingApi.Dto;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 
 namespace BookingApi.Service;
 
@@ -31,7 +32,14 @@ public class AuthService(AppDbContext context, IConfiguration config) : IAuthSer
         };
 
         context.Users.Add(newUser);
-        await context.SaveChangesAsync();
+        try
+        {
+            await context.SaveChangesAsync();
+        }
+        catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            return null;
+        }
 
         return new AuthResponseDto(GenerateToken(newUser), newUser.Username);
     }

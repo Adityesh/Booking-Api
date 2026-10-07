@@ -19,4 +19,5 @@ public enum WaitlistStatus
     Waiting,
     Promoted,
     Expired,
+    Withdrawn
 }
