@@ -1,4 +1,5 @@
 using BookingApi.Dto;
+using BookingApi.Extensions;
 using BookingApi.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,7 +39,8 @@ namespace BookingApi.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create(CreateResourceDto dto, CancellationToken token = default)
         {
-            var result = await resourceService.CreateAsync(dto, token);
+            var userId = User.GetUserId();
+            var result = await resourceService.CreateAsync(dto, userId, token);
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
         }
 
@@ -46,7 +48,8 @@ namespace BookingApi.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(int id, UpdateResourceDto dto, CancellationToken token = default)
         {
-            var result = await resourceService.UpdateAsync(id, dto, token);
+            var userId = User.GetUserId();
+            var result = await resourceService.UpdateAsync(id, dto, userId, token);
             return result ? NoContent() : NotFound("Resource not found");
         }
 
@@ -54,7 +57,8 @@ namespace BookingApi.Controllers
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id, CancellationToken token = default)
         {
-            var result = await resourceService.DeleteAsync(id, token);
+            var userId = User.GetUserId();
+            var result = await resourceService.DeleteAsync(id, userId, token);
             return result ? NoContent() : NotFound("Resource not found");
         }
     }

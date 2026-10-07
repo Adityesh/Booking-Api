@@ -54,7 +54,7 @@ public class ResourceControllerTests
     public async Task Update_ResourceDoesNotExist_ReturnsNotFound()
     {
         _mockResourceService
-            .Setup(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<UpdateResourceDto>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<UpdateResourceDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
 
         var result = await _controller.Update(1, new UpdateResourceDto("Name", 5, ResourceType.Equipment));
@@ -66,7 +66,7 @@ public class ResourceControllerTests
     public async Task Update_ResourceExists_ReturnsNoContent()
     {
         _mockResourceService
-            .Setup(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<UpdateResourceDto>(), It.IsAny<CancellationToken>()))
+            .Setup(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<UpdateResourceDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
 
         var result = await _controller.Update(1, new UpdateResourceDto("Name", 5, ResourceType.Equipment));
