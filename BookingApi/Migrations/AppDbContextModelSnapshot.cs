@@ -96,6 +96,12 @@ namespace BookingApi.Migrations
                     b.HasIndex("ResourceId")
                         .HasDatabaseName("ix_bookings_resource_id");
 
+                    b.HasIndex("StartTime")
+                        .HasDatabaseName("ix_bookings_start_time_confirmed")
+                        .HasFilter("status = 'Confirmed'");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("StartTime"), new[] { "ResourceId", "EndTime" });
+
                     b.HasIndex("UserId")
                         .HasDatabaseName("ix_bookings_user_id");
 

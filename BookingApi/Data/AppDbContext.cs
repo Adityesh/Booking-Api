@@ -28,6 +28,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .Property(b => b.Status)
             .HasConversion<string>();
 
+        modelBuilder.Entity<BookingEntity>()
+            .HasIndex(b => b.StartTime)
+            .IncludeProperties(b => new { b.ResourceId, b.EndTime })
+            .HasFilter("status = 'Confirmed'")
+            .HasDatabaseName("ix_bookings_start_time_confirmed");
+
         modelBuilder.Entity<WaitlistEntryEntity>()
             .Property(w => w.Status)
             .HasConversion<string>();
