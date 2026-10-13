@@ -1,4 +1,6 @@
+using BookingApi.Dto.Admin;
 using BookingApi.Extensions;
+using BookingApi.Service;
 using Microsoft.AspNetCore.Mvc;
 using Scalar.AspNetCore;
 
@@ -14,6 +16,67 @@ builder.Services.ConfigureValidation();
 builder.Services.ConfigureBackgroundServices();
 
 var app = builder.Build();
+
+if (args.Length > 0 && args[0].Equals("create-admin", StringComparison.OrdinalIgnoreCase))
+{
+    using var scope = app.Services.CreateScope();
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+
+    void CancelHandler(object? sender, ConsoleCancelEventArgs e)
+    {
+        e.Cancel = true;
+        cts.Cancel();
+    }
+
+    Console.CancelKeyPress += CancelHandler;
+
+    try
+    {
+        var adminService = scope.ServiceProvider.GetRequiredService<IAdminService>();
+
+        var userName = app.Configuration["CreateAdmin:Username"] ?? "";
+        var password = app.Configuration["CreateAdmin:Password"] ?? "";
+
+        var result = await adminService.CreateAdmin(userName, password, cts.Token);
+
+        switch (result)
+        {
+            case AdminCreationResult.Created:
+                Console.WriteLine($"Admin '{userName}' created.");
+                Environment.ExitCode = 0;
+                break;
+            case AdminCreationResult.AdminAlreadyExists:
+                // Idempotent: the end state is what the deploy wanted, so this is not a failure.
+                Console.WriteLine("An admin already exists. Nothing to do.");
+                Environment.ExitCode = 0;
+                break;
+            case AdminCreationResult.UsernameTaken:
+                Console.Error.WriteLine($"Username '{userName}' is already taken by another user.");
+                Environment.ExitCode = 1;
+                break;
+            default:
+                Console.Error.WriteLine("Invalid username or password. Check CreateAdmin__Username and CreateAdmin__Password.");
+                Environment.ExitCode = 1;
+                break;
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        Console.Error.WriteLine("Operation aborted by user or timed out.");
+        Environment.ExitCode = 1;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"create-admin failed: {ex.Message}");
+        Environment.ExitCode = 1;
+    }
+    finally
+    {
+        Console.CancelKeyPress -= CancelHandler;
+    }
+
+    return;
+}
 
 app.UseExceptionHandler(exceptionApp =>
 {
