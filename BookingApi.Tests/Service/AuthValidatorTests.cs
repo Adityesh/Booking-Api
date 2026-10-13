@@ -1,4 +1,5 @@
 using BookingApi.Dto;
+using BookingApi.Dto.Auth;
 using BookingApi.Dto.Validators;
 using FluentValidation.TestHelper;
 

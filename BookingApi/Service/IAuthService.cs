@@ -1,4 +1,5 @@
 using BookingApi.Dto;
+using BookingApi.Dto.Auth;
 
 namespace BookingApi.Service;
 

@@ -1,3 +1,4 @@
+using BookingApi.Dto.Auth;
 using FluentValidation;
 
 namespace BookingApi.Dto.Validators;

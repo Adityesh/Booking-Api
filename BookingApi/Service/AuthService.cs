@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using BookingApi.Data;
 using BookingApi.Dto;
+using BookingApi.Dto.Auth;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;

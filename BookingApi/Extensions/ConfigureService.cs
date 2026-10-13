@@ -61,6 +61,7 @@ public static class ConfigureService
             services.AddScoped<IBookingService, BookingService>();
             services.AddScoped<IWaitlistService, WaitlistService>();
             services.AddScoped<IAuditLogService, AuditLogService>();
+            services.AddScoped<IReportService, ReportService>();
         }
 
         public void ConfigureValidation()

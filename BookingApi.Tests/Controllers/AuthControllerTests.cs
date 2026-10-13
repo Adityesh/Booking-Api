@@ -1,5 +1,6 @@
 using BookingApi.Controllers;
 using BookingApi.Dto;
+using BookingApi.Dto.Auth;
 using BookingApi.Service;
 using FluentValidation;
 using FluentValidation.Results;
