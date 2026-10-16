@@ -6,3 +6,4 @@
 **/*.user
 BookingApi.Tests/
 BookingApi.LoadTests/
+web/
