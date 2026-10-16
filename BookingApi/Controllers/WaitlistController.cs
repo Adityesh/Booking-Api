@@ -34,7 +34,7 @@ namespace BookingApi.Controllers
             return result switch
             {
                 WithdrawWaitlistResult.NotFound => NotFound("Waitlist Entry not found."),
-                WithdrawWaitlistResult.NotWaiting => Conflict("Waitlist not valid"),
+                WithdrawWaitlistResult.NotWaiting => Conflict("This waitlist entry is no longer waiting: it has already been promoted or has expired."),
                 WithdrawWaitlistResult.Success => NoContent(),
                 _ => Problem()
             };

@@ -5,6 +5,6 @@ namespace BookingApi.Service;
 
 public interface IAuthService
 {
-    public Task<AuthResponseDto?> LoginAsync(LoginDto dto);
-    public Task<AuthResponseDto?> RegisterAsync(RegisterDto dto);
+    public Task<AuthResponseDto?> LoginAsync(LoginDto dto, CancellationToken token);
+    public Task<AuthResponseDto?> RegisterAsync(RegisterDto dto, CancellationToken token);
 }

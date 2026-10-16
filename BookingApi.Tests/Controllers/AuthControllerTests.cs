@@ -44,7 +44,7 @@ public class AuthControllerTests
         Assert.Equal(400, objectResult.StatusCode);
         var problem = Assert.IsType<ValidationProblemDetails>(objectResult.Value);
         Assert.Contains("Username", problem.Errors.Keys);
-        _authService.Verify(s => s.LoginAsync(It.IsAny<LoginDto>()), Times.Never);
+        _authService.Verify(s => s.LoginAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class AuthControllerTests
         _loginValidator
             .Setup(v => v.ValidateAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
-        _authService.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync((AuthResponseDto?)null);
+        _authService.Setup(s => s.LoginAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>())).ReturnsAsync((AuthResponseDto?)null);
 
         var result = await _controller.Login(dto, _loginValidator.Object, CancellationToken.None);
 
@@ -68,7 +68,7 @@ public class AuthControllerTests
         _loginValidator
             .Setup(v => v.ValidateAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
-        _authService.Setup(s => s.LoginAsync(It.IsAny<LoginDto>())).ReturnsAsync(SuccessResponse);
+        _authService.Setup(s => s.LoginAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>())).ReturnsAsync(SuccessResponse);
 
         var result = await _controller.Login(dto, _loginValidator.Object, CancellationToken.None);
 
@@ -92,7 +92,7 @@ public class AuthControllerTests
         Assert.Equal(400, objectResult.StatusCode);
         var problem = Assert.IsType<ValidationProblemDetails>(objectResult.Value);
         Assert.Contains("Password", problem.Errors.Keys);
-        _authService.Verify(s => s.RegisterAsync(It.IsAny<RegisterDto>()), Times.Never);
+        _authService.Verify(s => s.RegisterAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -102,7 +102,7 @@ public class AuthControllerTests
         _registerValidator
             .Setup(v => v.ValidateAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
-        _authService.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync((AuthResponseDto?)null);
+        _authService.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>())).ReturnsAsync((AuthResponseDto?)null);
 
         var result = await _controller.Register(dto, _registerValidator.Object, CancellationToken.None);
 
@@ -116,7 +116,7 @@ public class AuthControllerTests
         _registerValidator
             .Setup(v => v.ValidateAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
-        _authService.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>())).ReturnsAsync(SuccessResponse);
+        _authService.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>())).ReturnsAsync(SuccessResponse);
 
         var result = await _controller.Register(dto, _registerValidator.Object, CancellationToken.None);
 

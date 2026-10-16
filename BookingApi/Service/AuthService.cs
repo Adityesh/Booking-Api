@@ -12,17 +12,17 @@ namespace BookingApi.Service;
 
 public class AuthService(AppDbContext context, IConfiguration config) : IAuthService
 {
-    public async Task<AuthResponseDto?> LoginAsync(LoginDto dto)
+    public async Task<AuthResponseDto?> LoginAsync(LoginDto dto, CancellationToken token)
     {
-        var user = await context.Users.FirstOrDefaultAsync(u => u.Username == dto.Username);
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Username == dto.Username, token);
         if (user == null || !user.IsActive || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash)) return null;
 
         return new AuthResponseDto(GenerateToken(user), user.Username);
     }
 
-    public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto)
+    public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto, CancellationToken token)
     {
-        var userExists = await context.Users.AnyAsync(u => u.Username == dto.Username);
+        var userExists = await context.Users.AnyAsync(u => u.Username == dto.Username, token);
         if (userExists) return null;
 
         var newUser = new UserEntity()
@@ -35,7 +35,7 @@ public class AuthService(AppDbContext context, IConfiguration config) : IAuthSer
         context.Users.Add(newUser);
         try
         {
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(token);
         }
         catch (DbUpdateException e) when (e.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {

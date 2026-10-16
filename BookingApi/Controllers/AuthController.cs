@@ -21,7 +21,7 @@ public class AuthController(IAuthService authService) : ControllerBase
             return ValidationProblem(new ValidationProblemDetails(
                 validationResult.ToDictionary()));
 
-        var result = await authService.LoginAsync(dto);
+        var result = await authService.LoginAsync(dto, token);
         return result == null ? Unauthorized("Incorrect credentials") : Ok(result);
     }
 
@@ -36,7 +36,7 @@ public class AuthController(IAuthService authService) : ControllerBase
             return ValidationProblem(new ValidationProblemDetails(
                 validationResult.ToDictionary()));
 
-        var result = await authService.RegisterAsync(dto);
+        var result = await authService.RegisterAsync(dto, token);
         return result == null ? Conflict("Username already taken") : Ok(result);
     }
 }
