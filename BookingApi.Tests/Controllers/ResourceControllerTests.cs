@@ -1,6 +1,7 @@
 using BookingApi.Controllers;
 using BookingApi.Data;
 using BookingApi.Dto;
+using BookingApi.Dto.Resource;
 using BookingApi.Service;
 using BookingApi.Tests.Helpers;
 using Microsoft.AspNetCore.Http;
@@ -55,7 +56,7 @@ public class ResourceControllerTests
     {
         _mockResourceService
             .Setup(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<UpdateResourceDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(false);
+            .ReturnsAsync(ResourceUpdateResult.NotFound);
 
         var result = await _controller.Update(1, new UpdateResourceDto("Name", 5, ResourceType.Equipment));
 
@@ -67,7 +68,7 @@ public class ResourceControllerTests
     {
         _mockResourceService
             .Setup(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<UpdateResourceDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(true);
+            .ReturnsAsync(ResourceUpdateResult.Updated);
 
         var result = await _controller.Update(1, new UpdateResourceDto("Name", 5, ResourceType.Equipment));
 

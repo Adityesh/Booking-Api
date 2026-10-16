@@ -1,5 +1,6 @@
 using BookingApi.Data;
 using BookingApi.Dto;
+using BookingApi.Dto.Resource;
 using BookingApi.Service;
 using BookingApi.Tests.Fixtures;
 using Microsoft.EntityFrameworkCore;
@@ -95,14 +96,14 @@ public class ResourceServiceTests(PostgresFixture fixture)
         var adminId = await SeedAdminAsync();
         var resourceId = await SeedResourceAsync();
 
-        bool result;
+        ResourceUpdateResult result;
         await using (var context = CreateContext())
         {
             result = await CreateService(context)
                 .UpdateAsync(resourceId, new UpdateResourceDto("Renamed", 9, ResourceType.Equipment), adminId, CancellationToken.None);
         }
 
-        Assert.True(result);
+        Assert.Equal(ResourceUpdateResult.Updated, result);
         var entry = Assert.Single(await ResourceEntriesAsync(resourceId));
         Assert.Equal(ActionType.ResourceUpdated, entry.Action);
         Assert.Equal(adminId, entry.UserId);
@@ -115,35 +116,35 @@ public class ResourceServiceTests(PostgresFixture fixture)
     }
 
     [Fact]
-    public async Task UpdateAsync_IdenticalValues_ReturnsFalse_AndLogsNothing()
+    public async Task UpdateAsync_IdenticalValues_ReturnsUnchanged_AndLogsNothing()
     {
         var adminId = await SeedAdminAsync();
         var resourceId = await SeedResourceAsync();   // seeded as "Seeded resource", Room, capacity 4
 
-        bool result;
+        ResourceUpdateResult result;
         await using (var context = CreateContext())
         {
             result = await CreateService(context)
                 .UpdateAsync(resourceId, new UpdateResourceDto("Seeded resource", 4, ResourceType.Room), adminId, CancellationToken.None);
         }
 
-        Assert.False(result);   // the resource exists, so this is not a failure
+        Assert.Equal(ResourceUpdateResult.Unchanged, result);   // the resource exists, so this is not NotFound
         Assert.Empty(await ResourceEntriesAsync(resourceId));   // nothing changed, so nothing to audit
     }
 
     [Fact]
-    public async Task UpdateAsync_UnknownResource_ReturnsFalse_AndLogsNothing()
+    public async Task UpdateAsync_UnknownResource_ReturnsNotFound_AndLogsNothing()
     {
         var adminId = await SeedAdminAsync();
 
-        bool result;
+        ResourceUpdateResult result;
         await using (var context = CreateContext())
         {
             result = await CreateService(context)
                 .UpdateAsync(int.MaxValue, new UpdateResourceDto("Ghost", 1, ResourceType.Room), adminId, CancellationToken.None);
         }
 
-        Assert.False(result);
+        Assert.Equal(ResourceUpdateResult.NotFound, result);
         Assert.Empty(await ResourceEntriesAsync(int.MaxValue));
     }
 

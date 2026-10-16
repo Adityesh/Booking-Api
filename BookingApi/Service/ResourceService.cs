@@ -1,6 +1,7 @@
 using BookingApi.Data;
 using BookingApi.Dto;
 using BookingApi.Dto.AuditLog;
+using BookingApi.Dto.Resource;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookingApi.Service;
@@ -46,10 +47,10 @@ public class ResourceService(AppDbContext context, IAuditLogService auditLogServ
         return new ResourceResponseDto(newResource.Id, newResource.Name, newResource.Type, newResource.Capacity, newResource.IsActive);
     }
 
-    public async Task<bool> UpdateAsync(int id, UpdateResourceDto dto, int userId, CancellationToken token)
+    public async Task<ResourceUpdateResult> UpdateAsync(int id, UpdateResourceDto dto, int userId, CancellationToken token)
     {
         var resourceExists = await context.Resources.FirstOrDefaultAsync(r => r.Id == id, token);
-        if (resourceExists == null) return false;
+        if (resourceExists == null) return ResourceUpdateResult.NotFound;
 
         resourceExists.Name = dto.Name;
         resourceExists.Type = dto.Type;
@@ -60,7 +61,7 @@ public class ResourceService(AppDbContext context, IAuditLogService auditLogServ
             auditLogService.CreateLog(new CreateAuditLogDto(id, userId, ActionType.ResourceUpdated));
         }
         await context.SaveChangesAsync(token);
-        return hasChanged;
+        return hasChanged ? ResourceUpdateResult.Updated : ResourceUpdateResult.Unchanged;
     }
 
     public async Task<bool> DeleteAsync(int id, int userId, CancellationToken token)

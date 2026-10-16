@@ -1,4 +1,5 @@
 using BookingApi.Dto;
+using BookingApi.Dto.Resource;
 using BookingApi.Extensions;
 using BookingApi.Service;
 using Microsoft.AspNetCore.Authorization;
@@ -12,6 +13,7 @@ namespace BookingApi.Controllers
     {
         [HttpGet]
         [Authorize]
+        [ProducesResponseType<List<ResourceResponseDto>>(StatusCodes.Status200OK, "application/json")]
         public async Task<IActionResult> GetActive(CancellationToken token = default)
         {
             var result = await resourceService.GetAllAsync(false, token);
@@ -20,6 +22,7 @@ namespace BookingApi.Controllers
 
         [HttpGet("all")]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType<List<ResourceResponseDto>>(StatusCodes.Status200OK, "application/json")]
         public async Task<IActionResult> GetAll(CancellationToken token = default)
         {
             var result = await resourceService.GetAllAsync(true, token);
@@ -28,6 +31,8 @@ namespace BookingApi.Controllers
 
         [HttpGet("{id:int}")]
         [Authorize]
+        [ProducesResponseType<ResourceResponseDto>(StatusCodes.Status200OK, "application/json")]
+        [ProducesResponseType<string>(StatusCodes.Status404NotFound, "text/plain")]
         public async Task<IActionResult> GetById(int id, CancellationToken token = default)
         {
             var isAdmin = User.IsInRole("Admin");
@@ -37,6 +42,8 @@ namespace BookingApi.Controllers
 
         [HttpPost]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType<ResourceResponseDto>(StatusCodes.Status201Created, "application/json")]
+        [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
         public async Task<IActionResult> Create(CreateResourceDto dto, CancellationToken token = default)
         {
             var userId = User.GetUserId();
@@ -46,15 +53,26 @@ namespace BookingApi.Controllers
 
         [HttpPut("{id:int}")]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+        [ProducesResponseType<string>(StatusCodes.Status404NotFound, "text/plain")]
         public async Task<IActionResult> Update(int id, UpdateResourceDto dto, CancellationToken token = default)
         {
             var userId = User.GetUserId();
             var result = await resourceService.UpdateAsync(id, dto, userId, token);
-            return result ? NoContent() : NotFound("Resource not found");
+            return result switch
+            {
+                // Unchanged is a success too: the resource is in exactly the state the client asked for.
+                ResourceUpdateResult.Updated or ResourceUpdateResult.Unchanged => NoContent(),
+                ResourceUpdateResult.NotFound => NotFound("Resource not found"),
+                _ => Problem()
+            };
         }
 
         [HttpDelete("{id:int}")]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType<string>(StatusCodes.Status404NotFound, "text/plain")]
         public async Task<IActionResult> Delete(int id, CancellationToken token = default)
         {
             var userId = User.GetUserId();
