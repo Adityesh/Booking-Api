@@ -1,0 +1,46 @@
+x-app-env: &app-env                    # a YAML "anchor": define the settings once, reuse them below
+  ConnectionStrings__DefaultConnection: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+  JwtSettings__Key: ${JWT_KEY}
+  JwtSettings__Issuer: ${JWT_ISSUER}
+  JwtSettings__Audience: ${JWT_AUDIENCE}
+  JwtSettings__ExpiryMinutes: ${JWT_EXPIRY_MINUTES}
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}          # ${...} values come from the .env file (below)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data        # named volume: data survives `docker compose down`
+    ports:
+      - "5433:5432"                            # host:container. 5433 so it doesn't clash with a Postgres on your machine
+    healthcheck:                               # lets other services wait until Postgres is really ready
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      target: migrate                      # build only up to the "migrate" stage
+    depends_on:
+      db:
+        condition: service_healthy
+    environment: *app-env                  # reuse the anchor
+
+  api:
+    build:
+      context: .
+      target: final
+    depends_on:
+      migrate:
+        condition: service_completed_successfully   # wait until migrate exited with code 0
+    environment: *app-env
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
