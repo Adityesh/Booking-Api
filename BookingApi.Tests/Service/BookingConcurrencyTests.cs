@@ -194,14 +194,62 @@ public class BookingConcurrencyTests(PostgresFixture fixture)
         // exactly once (a double promotion would show up here as a second entry).
         var cancelEntries = await verify.AuditLogEntries
             .Where(e => e.Action == ActionType.BookingCancelled
+                        && e.UserId == admin.Id
                         && (e.EntityId == firstBooking.Id || e.EntityId == secondBooking.Id))
             .ToListAsync();
         Assert.Equal(2, cancelEntries.Count);
         Assert.All(cancelEntries, e => Assert.Equal(admin.Id, e.UserId));
 
         Assert.Equal(1, await verify.AuditLogEntries
-            .CountAsync(e => e.Action == ActionType.WaitlistEntryPromoted && e.EntityId == entry.Id));
+            .CountAsync(e => e.Action == ActionType.WaitlistEntryPromoted
+                             && e.UserId == alice.Id && e.EntityId == entry.Id));
         Assert.Equal(1, await verify.AuditLogEntries
-            .CountAsync(e => e.Action == ActionType.BookingCreated && e.EntityId == alices.Id));
+            .CountAsync(e => e.Action == ActionType.BookingCreated
+                             && e.UserId == alice.Id && e.EntityId == alices.Id));
+    }
+
+    [Fact]
+    public async Task CancelAsync_TheSameBookingCancelledConcurrently_SucceedsOnceAndLogsOnce()
+    {
+        // A single attempt can slip through by luck, so repeat with a fresh booking each round.
+        // Without a lock taken BEFORE the status check, both callers read "Confirmed" and both report Success.
+        const int rounds = 8;
+
+        for (var round = 0; round < rounds; round++)
+        {
+            var owner = await SeedUserAsync();
+            var firstAdmin = await SeedUserAsync(UserRole.Admin);     // two distinct actors, so audit rows can be told apart
+            var secondAdmin = await SeedUserAsync(UserRole.Admin);
+            var resource = await SeedResourceAsync(capacity: 1);
+            var booking = await SeedBookingAsync(resource.Id, owner.Id, At(14), At(15));
+
+            var gate = NewStartingGate();
+
+            var tasks = new[] { firstAdmin.Id, secondAdmin.Id }.Select(async adminId =>
+            {
+                await gate.Task;
+                await using var context = CreateContext();
+                return await NewBookingService(context).CancelAsync(booking.Id, adminId, true, CancellationToken.None);
+            }).ToList();
+
+            gate.SetResult();
+            var results = await Task.WhenAll(tasks);
+
+            // Exactly one caller performs the cancellation; the other sees it already done.
+            Assert.Equal(1, results.Count(r => r == BookingCancellationResult.Success));
+            Assert.Equal(1, results.Count(r => r == BookingCancellationResult.AlreadyCancelled));
+
+            await using var verify = CreateContext();
+            Assert.Equal(BookingStatus.Cancelled,
+                (await verify.Bookings.SingleAsync(b => b.Id == booking.Id)).Status);
+
+            // One cancellation means one audit entry. Matching on the two admins keeps other tests' rows out.
+            var cancelEntries = await verify.AuditLogEntries
+                .Where(e => e.Action == ActionType.BookingCancelled
+                            && e.EntityId == booking.Id
+                            && (e.UserId == firstAdmin.Id || e.UserId == secondAdmin.Id))
+                .ToListAsync();
+            Assert.Single(cancelEntries);
+        }
     }
 }

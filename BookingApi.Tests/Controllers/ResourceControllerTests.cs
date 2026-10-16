@@ -21,7 +21,7 @@ public class ResourceControllerTests
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext { User = AuthHelper.CreateUser("Admin") }
+                HttpContext = new DefaultHttpContext { User = AuthHelper.CreateUser("Admin", 1) }
             }
         };
     }

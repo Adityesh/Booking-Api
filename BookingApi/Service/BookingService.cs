@@ -65,7 +65,8 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
 
             context.Bookings.Add(newBooking);
             await context.SaveChangesAsync(token);
-            auditLogService.CreateLog(new CreateAuditLogDto(newBooking.Id, newBooking.UserId, ActionType.BookingCreated));
+            auditLogService.CreateLog(
+                new CreateAuditLogDto(newBooking.Id, newBooking.UserId, ActionType.BookingCreated));
             await context.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
 
@@ -80,7 +81,8 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
         }
     }
 
-    public async Task<BookingResponseDto?> GetByIdAsync(int id, bool isAdmin, int userId, CancellationToken token = default)
+    public async Task<BookingResponseDto?> GetByIdAsync(int id, bool isAdmin, int userId,
+        CancellationToken token = default)
     {
         var baseQuery = context.Bookings.Where(b => b.Id == id).AsQueryable();
 
@@ -93,18 +95,30 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
                 booking.Status, booking.UserId);
     }
 
-    public async Task<BookingCancellationResult> CancelAsync(int id, int userId, bool isAdmin, CancellationToken token = default)
+    public async Task<BookingCancellationResult> CancelAsync(int id, int userId, bool isAdmin,
+        CancellationToken token = default)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(token);
 
         try
         {
-            var baseQuery = context.Bookings.Where(b => b.Id == id).AsQueryable();
+            // 1. Look up the booking WITHOUT tracking it and make no decisions from it yet.
+            //    This only answers "does it exist / is it mine" and "which resource do I need to lock".
+            var lookup = context.Bookings.AsNoTracking().Where(b => b.Id == id);
+            if (!isAdmin) lookup = lookup.Where(b => b.UserId == userId);
 
-            if (!isAdmin) baseQuery = baseQuery.Where(b => b.UserId == userId);
+            var resourceId = await lookup.Select(b => (int?)b.ResourceId).FirstOrDefaultAsync(token);
+            if (resourceId == null) return BookingCancellationResult.NotFound;
 
-            var booking = await baseQuery.FirstOrDefaultAsync(token);
-            if (booking == null) return BookingCancellationResult.NotFound;
+            // 2. Take the same resource lock that CreateAsync uses, BEFORE reading the status.
+            //    A concurrent cancel of this booking (or of any booking on this resource) now waits here.
+            var resource = await context.Resources
+                .FromSqlInterpolated($"SELECT * FROM resources WHERE id = {resourceId} FOR UPDATE")
+                .FirstAsync(token);
+
+            // 3. Read the booking again, tracked this time. Step 1 left it untracked, so this is a fresh read
+            //    that sees whatever the previous lock holder committed.
+            var booking = await context.Bookings.FirstAsync(b => b.Id == id, token);
 
             if (booking.Status == BookingStatus.Cancelled) return BookingCancellationResult.AlreadyCancelled;
 
@@ -117,11 +131,10 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
             auditLogService.CreateLog(new CreateAuditLogDto(booking.Id, userId, ActionType.BookingCancelled));
             await context.SaveChangesAsync(token);
 
-            await PromoteWaitList(booking.ResourceId, token);
+            await PromoteWaitList(resource, token);
 
             await transaction.CommitAsync(token);
             return BookingCancellationResult.Success;
-
         }
         catch (Exception)
         {
@@ -130,16 +143,14 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
         }
     }
 
-    private async Task PromoteWaitList(int resourceId, CancellationToken token)
+    private async Task PromoteWaitList(ResourceEntity resource, CancellationToken token)
     {
-        var resource = await context.Resources
-            .FromSqlInterpolated($"SELECT * FROM resources WHERE id = {resourceId} FOR UPDATE")
-            .FirstOrDefaultAsync(token);
-
-        if (resource is not { IsActive: true }) return;
+        // The caller already holds the FOR UPDATE lock on this resource row.
+        if (!resource.IsActive) return;
 
         var waitlistEntries = await context.WaitlistEntries
-            .Where(w => w.ResourceId == resourceId && w.Status == WaitlistStatus.Waiting && w.RequestedStartTime > DateTime.UtcNow)
+            .Where(w => w.ResourceId == resource.Id && w.Status == WaitlistStatus.Waiting &&
+                        w.RequestedStartTime > DateTime.UtcNow)
             .OrderBy(w => w.CreatedAt)
             .ToListAsync(token);
 
@@ -152,11 +163,12 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
                 .CountAsync(token);
 
             if (overlappingCount >= resource.Capacity) continue;
+
             var booking = new BookingEntity()
             {
                 StartTime = entry.RequestedStartTime,
                 EndTime = entry.RequestedEndTime,
-                ResourceId = resourceId,
+                ResourceId = resource.Id,
                 UserId = entry.UserId,
                 Status = BookingStatus.Confirmed
             };
@@ -178,7 +190,7 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
             .AnyAsync(w =>
                 w.ResourceId == resourceId && w.RequestedStartTime == startTime && w.RequestedEndTime == endTime &&
                 w.UserId == userId &&
-                w.Status == WaitlistStatus.Waiting , token);
+                w.Status == WaitlistStatus.Waiting, token);
 
         if (waitListExists) return false;
 
