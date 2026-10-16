@@ -4,6 +4,8 @@ using BookingApi.Dto;
 using BookingApi.Dto.Resource;
 using BookingApi.Service;
 using BookingApi.Tests.Helpers;
+using FluentValidation;
+using FluentValidation.Results;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
@@ -25,6 +27,16 @@ public class ResourceControllerTests
                 HttpContext = new DefaultHttpContext { User = AuthHelper.CreateUser("Admin", 1) }
             }
         };
+    }
+
+    // These tests are about the controller's branching after validation, so the validator always passes.
+    // Mocks the real interface member, IValidator<T>.ValidateAsync(T, CancellationToken).
+    private static IValidator<T> PassingValidator<T>()
+    {
+        var mock = new Mock<IValidator<T>>();
+        mock.Setup(v => v.ValidateAsync(It.IsAny<T>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ValidationResult());
+        return mock.Object;
     }
 
     [Fact]
@@ -58,7 +70,8 @@ public class ResourceControllerTests
             .Setup(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<UpdateResourceDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ResourceUpdateResult.NotFound);
 
-        var result = await _controller.Update(1, new UpdateResourceDto("Name", 5, ResourceType.Equipment));
+        var result = await _controller.Update(1, new UpdateResourceDto("Name", 5, ResourceType.Equipment),
+            PassingValidator<UpdateResourceDto>());
 
         Assert.IsType<NotFoundObjectResult>(result);
     }
@@ -70,7 +83,8 @@ public class ResourceControllerTests
             .Setup(s => s.UpdateAsync(It.IsAny<int>(), It.IsAny<UpdateResourceDto>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ResourceUpdateResult.Updated);
 
-        var result = await _controller.Update(1, new UpdateResourceDto("Name", 5, ResourceType.Equipment));
+        var result = await _controller.Update(1, new UpdateResourceDto("Name", 5, ResourceType.Equipment),
+            PassingValidator<UpdateResourceDto>());
 
         Assert.IsType<NoContentResult>(result);
     }

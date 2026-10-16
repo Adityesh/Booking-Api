@@ -2,6 +2,7 @@ using BookingApi.Dto;
 using BookingApi.Dto.Resource;
 using BookingApi.Extensions;
 using BookingApi.Service;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -44,8 +45,14 @@ namespace BookingApi.Controllers
         [Authorize(Roles = "Admin")]
         [ProducesResponseType<ResourceResponseDto>(StatusCodes.Status201Created, "application/json")]
         [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
-        public async Task<IActionResult> Create(CreateResourceDto dto, CancellationToken token = default)
+        public async Task<IActionResult> Create(CreateResourceDto dto, IValidator<CreateResourceDto> validator,
+            CancellationToken token = default)
         {
+            var validationResult = await validator.ValidateAsync(dto, token);
+            if (!validationResult.IsValid)
+                return ValidationProblem(new ValidationProblemDetails(
+                    validationResult.ToDictionary()));
+
             var userId = User.GetUserId();
             var result = await resourceService.CreateAsync(dto, userId, token);
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
@@ -56,8 +63,14 @@ namespace BookingApi.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
         [ProducesResponseType<string>(StatusCodes.Status404NotFound, "text/plain")]
-        public async Task<IActionResult> Update(int id, UpdateResourceDto dto, CancellationToken token = default)
+        public async Task<IActionResult> Update(int id, UpdateResourceDto dto, IValidator<UpdateResourceDto> validator,
+            CancellationToken token = default)
         {
+            var validationResult = await validator.ValidateAsync(dto, token);
+            if (!validationResult.IsValid)
+                return ValidationProblem(new ValidationProblemDetails(
+                    validationResult.ToDictionary()));
+
             var userId = User.GetUserId();
             var result = await resourceService.UpdateAsync(id, dto, userId, token);
             return result switch
