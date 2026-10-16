@@ -1,42 +1,33 @@
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { client, unwrap } from './api/client'
 
-type ProbeState =
-  | { kind: 'loading' }
-  | { kind: 'response'; status: number; body: string }
-  | { kind: 'error'; message: string }
-
+// Temporary probe page: proves the typed client, the error middleware and React Query work end to end. Without a token
+// the API answers 401 with an empty body, which must show up as an error here — not as an empty list.
 function App() {
-  const [state, setState] = useState<ProbeState>({ kind: 'loading' })
-
-  useEffect(() => {
-    // StrictMode mounts effects twice in dev; aborting the first request keeps only one result.
-    const controller = new AbortController()
-
-    fetch('/api/resource', { signal: controller.signal })
-      // Read as text, not json(): a JwtBearer 401 has an EMPTY body (details are in WWW-Authenticate).
-      .then(async (res) => setState({ kind: 'response', status: res.status, body: await res.text() }))
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return
-        setState({ kind: 'error', message: err instanceof Error ? err.message : String(err) })
-      })
-
-    return () => controller.abort()
-  }, [])
+  const { data, error, isPending } = useQuery({
+    queryKey: ['resources'],
+    // The signal lets React Query cancel the request (unmount, StrictMode's double mount, a newer fetch).
+    queryFn: ({ signal }) => unwrap(client.GET('/api/Resource', { signal })),
+  })
 
   return (
     <main>
       <h1>BookingApi</h1>
-      <h2>GET /api/resource (no token)</h2>
-      {state.kind === 'loading' && <p>Loading…</p>}
-      {state.kind === 'error' && <p role="alert">Request failed: {state.message}</p>}
-      {state.kind === 'response' && (
-        <>
-          <p>
-            Status: <strong>{state.status}</strong>
-            {state.status === 401 && ' — expected: the endpoint requires a token'}
-          </p>
-          <pre>{state.body || '(empty body)'}</pre>
-        </>
+      <h2>GET /api/Resource</h2>
+      {isPending && <p>Loading…</p>}
+      {error && (
+        <p role="alert">
+          {error.status ?? 'No response'} ({error.kind}): {error.message}
+        </p>
+      )}
+      {data && (
+        <ul>
+          {data.map((resource) => (
+            <li key={resource.id}>
+              {resource.name} — {resource.type}, capacity {resource.capacity}
+            </li>
+          ))}
+        </ul>
       )}
     </main>
   )

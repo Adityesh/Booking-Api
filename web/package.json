@@ -16,6 +16,8 @@
     "api:sync": "npm run api:fetch && npm run api:types"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.104.3",
+    "openapi-fetch": "^0.17.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
