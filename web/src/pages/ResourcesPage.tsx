@@ -1,14 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
-import { client, unwrap } from '@/api/client'
+import { resourcesQuery } from '@/api/queries'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import { PlaceholderPage } from '@/components/PlaceholderPage'
 
 // Already fetches the real list (the old probe page); the layout and filtering by type are still to do.
 export function ResourcesPage() {
-  const { data, error, isPending } = useQuery({
-    queryKey: ['resources'],
-    queryFn: ({ signal }) => unwrap(client.GET('/api/Resource', { signal })),
-  })
+  const { data, error, isPending } = useQuery(resourcesQuery())
 
   return (
     <PlaceholderPage
@@ -18,9 +16,7 @@ export function ResourcesPage() {
     >
       {isPending && <p className="text-muted-foreground">Loading…</p>}
       {error && (
-        <p role="alert" className="bg-destructive/10 text-destructive rounded-lg px-3 py-2 text-sm">
-          {error.message}
-        </p>
+        <ErrorAlert>{error.message}</ErrorAlert>
       )}
       {data && (
         <ul className="divide-y rounded-lg border">

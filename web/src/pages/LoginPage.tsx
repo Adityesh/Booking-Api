@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { client, fieldErrors, unwrap } from '@/api/client'
 import type { components } from '@/api/schema'
 import { useAuth } from '@/auth/authContext'
+import { ErrorAlert } from '@/components/ErrorAlert'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -66,11 +67,7 @@ export function LoginPage() {
           </Field>
         </FieldGroup>
 
-        {formError && (
-          <p role="alert" className="bg-destructive/10 text-destructive rounded-lg px-3 py-2 text-sm">
-            {formError}
-          </p>
-        )}
+        {formError && <ErrorAlert>{formError}</ErrorAlert>}
 
         <Button type="submit" className="w-full" disabled={login.isPending}>
           {login.isPending ? 'Signing in…' : 'Sign in'}
