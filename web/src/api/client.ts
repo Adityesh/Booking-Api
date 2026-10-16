@@ -102,6 +102,14 @@ export async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError(kind, message, status)
 }
 
+// The messages for one form field from a 400 validation error. ProblemDetails keys are the DTO's C# property names
+// ("Username") while request bodies are camelCase ("username"), so the lookup ignores case.
+export function fieldErrors(error: ApiError | null, field: string): readonly string[] {
+  if (error?.kind !== 'validation') return []
+  const key = Object.keys(error.fieldErrors).find((k) => k.toLowerCase() === field.toLowerCase())
+  return key ? error.fieldErrors[key] : []
+}
+
 // ---------- access token (in memory only, never localStorage) ----------
 
 // A page reload therefore signs the user out; that is the accepted trade-off until refresh-token cookies exist.
