@@ -1,5 +1,10 @@
 {
   "files": [],
+  // Read by the shadcn CLI to resolve "@/..." imports when it adds components. No baseUrl: TS 6 deprecates it, and
+  // "paths" now resolves relative to this file.
+  "compilerOptions": {
+    "paths": { "@/*": ["./src/*"] }
+  },
   "references": [
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" }
