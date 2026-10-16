@@ -136,17 +136,42 @@ public class BookingServiceTests(PostgresFixture fixture)
         var userId = await SeedUserAsync();
         var resourceId = await SeedResourceAsync(capacity: 1);
 
-        (BookingCreationResult result, BookingResponseDto? booking) outcome;
+        BookingCreationOutcome outcome;
         await using (var context = CreateContext())
         {
             outcome = await BookingServiceFor(context)
                 .CreateAsync(new CreateBookingDto(Slot, Slot.AddHours(1), resourceId), userId, CancellationToken.None);
         }
 
-        Assert.Equal(BookingCreationResult.Success, outcome.result);
+        Assert.Equal(BookingCreationResult.Success, outcome.Result);
         var bookingId = Assert.Single(await BookingIdsAsync(resourceId, userId));
         var entry = Assert.Single(await EntriesAsync(ActionType.BookingCreated, bookingId));
         Assert.Equal(userId, entry.UserId);
+    }
+
+    [Fact]
+    public async Task CreateAsync_Success_ReturnsTheSavedBooking_AndNoWaitlistEntry()
+    {
+        var userId = await SeedUserAsync();
+        var resourceId = await SeedResourceAsync(capacity: 1);
+
+        BookingCreationOutcome outcome;
+        await using (var context = CreateContext())
+        {
+            outcome = await BookingServiceFor(context)
+                .CreateAsync(new CreateBookingDto(Slot, Slot.AddHours(1), resourceId), userId, CancellationToken.None);
+        }
+
+        Assert.Equal(BookingCreationResult.Success, outcome.Result);
+        Assert.Null(outcome.WaitlistEntry);
+        var booking = Assert.IsType<BookingResponseDto>(outcome.Booking);
+        // The id must be the real database id (assigned by SaveChangesAsync), not 0.
+        Assert.Equal(Assert.Single(await BookingIdsAsync(resourceId, userId)), booking.Id);
+        Assert.Equal(resourceId, booking.ResourceId);
+        Assert.Equal(userId, booking.UserId);
+        Assert.Equal(Slot, booking.StartTime);
+        Assert.Equal(Slot.AddHours(1), booking.EndTime);
+        Assert.Equal(BookingStatus.Confirmed, booking.Status);
     }
 
     [Fact]
@@ -157,18 +182,54 @@ public class BookingServiceTests(PostgresFixture fixture)
         var resourceId = await SeedResourceAsync(capacity: 1);
         await SeedBookingAsync(resourceId, holderId, Slot, Slot.AddHours(1));
 
-        (BookingCreationResult result, BookingResponseDto? booking) outcome;
+        BookingCreationOutcome outcome;
         await using (var context = CreateContext())
         {
             outcome = await BookingServiceFor(context)
                 .CreateAsync(new CreateBookingDto(Slot, Slot.AddHours(1), resourceId), userId, CancellationToken.None);
         }
 
-        Assert.Equal(BookingCreationResult.WaitListed, outcome.result);
+        Assert.Equal(BookingCreationResult.WaitListed, outcome.Result);
         var entryId = await WaitlistEntryIdAsync(resourceId, userId);
         var logged = Assert.Single(await EntriesAsync(ActionType.WaitlistEntryCreated, entryId));
         Assert.Equal(userId, logged.UserId);
         Assert.DoesNotContain(await EntriesByUserAsync(userId), e => e.Action == ActionType.BookingCreated);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ResourceFull_ReturnsTheSavedWaitlistEntry_AndNoBooking()
+    {
+        var holderId = await SeedUserAsync();
+        var userId = await SeedUserAsync();
+        var resourceId = await SeedResourceAsync(capacity: 1);
+        await SeedBookingAsync(resourceId, holderId, Slot, Slot.AddHours(1));
+
+        var before = DateTime.UtcNow;
+        BookingCreationOutcome outcome;
+        await using (var context = CreateContext())
+        {
+            outcome = await BookingServiceFor(context)
+                .CreateAsync(new CreateBookingDto(Slot, Slot.AddHours(1), resourceId), userId, CancellationToken.None);
+        }
+        var after = DateTime.UtcNow;
+
+        Assert.Equal(BookingCreationResult.WaitListed, outcome.Result);
+        Assert.Null(outcome.Booking);
+        var entry = Assert.IsType<WaitlistEntryResponseDto>(outcome.WaitlistEntry);
+
+        // The returned entry is the row that was saved: same id (real, not 0), same values.
+        await using var verify = CreateContext();
+        var row = await verify.WaitlistEntries.AsNoTracking().SingleAsync(w => w.Id == entry.Id);
+        Assert.Equal(await WaitlistEntryIdAsync(resourceId, userId), entry.Id);
+        Assert.Equal(userId, row.UserId);
+        Assert.Equal(resourceId, entry.ResourceId);
+        Assert.Equal(Slot, entry.RequestedStartTime);
+        Assert.Equal(Slot.AddHours(1), entry.RequestedEndTime);
+        Assert.Equal(WaitlistStatus.Waiting, entry.Status);
+        Assert.InRange(entry.CreatedAt, before, after);
+        // Postgres stores microseconds; the DTO is built from the in-memory DateTime (100 ns ticks), so the value in
+        // the 202 body can be up to 1 µs ahead of what a later read returns. Harmless, but not exactly equal.
+        Assert.True((entry.CreatedAt - row.CreatedAt).Duration() < TimeSpan.FromMicroseconds(1));
     }
 
     [Fact]
@@ -180,15 +241,18 @@ public class BookingServiceTests(PostgresFixture fixture)
         await SeedBookingAsync(resourceId, holderId, Slot, Slot.AddHours(1));
         var dto = new CreateBookingDto(Slot, Slot.AddHours(1), resourceId);
 
-        (BookingCreationResult result, BookingResponseDto? booking) first, second;
+        BookingCreationOutcome first, second;
         await using (var context = CreateContext())
             first = await BookingServiceFor(context).CreateAsync(dto, userId, CancellationToken.None);
         await using (var context = CreateContext())
             second = await BookingServiceFor(context).CreateAsync(dto, userId, CancellationToken.None);
 
-        Assert.Equal(BookingCreationResult.WaitListed, first.result);
-        Assert.Equal(BookingCreationResult.AlreadyWaitListed, second.result);
+        Assert.Equal(BookingCreationResult.WaitListed, first.Result);
+        Assert.Equal(BookingCreationResult.AlreadyWaitListed, second.Result);
+        Assert.Null(second.Booking);
+        Assert.Null(second.WaitlistEntry);
         var entryId = await WaitlistEntryIdAsync(resourceId, userId);
+        Assert.Equal(entryId, first.WaitlistEntry?.Id);
         Assert.Single(await EntriesAsync(ActionType.WaitlistEntryCreated, entryId));
         Assert.Single(await EntriesByUserAsync(userId));
     }
@@ -198,14 +262,16 @@ public class BookingServiceTests(PostgresFixture fixture)
     {
         var userId = await SeedUserAsync();
 
-        (BookingCreationResult result, BookingResponseDto? booking) outcome;
+        BookingCreationOutcome outcome;
         await using (var context = CreateContext())
         {
             outcome = await BookingServiceFor(context)
                 .CreateAsync(new CreateBookingDto(Slot, Slot.AddHours(1), int.MaxValue), userId, CancellationToken.None);
         }
 
-        Assert.Equal(BookingCreationResult.ResourceNotFound, outcome.result);
+        Assert.Equal(BookingCreationResult.ResourceNotFound, outcome.Result);
+        Assert.Null(outcome.Booking);
+        Assert.Null(outcome.WaitlistEntry);
         Assert.Empty(await EntriesByUserAsync(userId));
     }
 

@@ -1,13 +1,14 @@
 using BookingApi.Data;
 using BookingApi.Dto.AuditLog;
 using BookingApi.Dto.Booking;
+using BookingApi.Dto.Waitlist;
 using Microsoft.EntityFrameworkCore;
 
 namespace BookingApi.Service;
 
 public class BookingService(AppDbContext context, IAuditLogService auditLogService) : IBookingService
 {
-    public async Task<(BookingCreationResult result, BookingResponseDto? booking)> CreateAsync(CreateBookingDto dto,
+    public async Task<BookingCreationOutcome> CreateAsync(CreateBookingDto dto,
         int userId, CancellationToken token)
     {
         await using var transaction = await context.Database.BeginTransactionAsync(token);
@@ -21,13 +22,13 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
             if (resource == null)
             {
                 await transaction.RollbackAsync(token);
-                return (BookingCreationResult.ResourceNotFound, null);
+                return new BookingCreationOutcome(BookingCreationResult.ResourceNotFound, null, null);
             }
 
             if (!resource.IsActive)
             {
                 await transaction.RollbackAsync(token);
-                return (BookingCreationResult.ResourceInactive, null);
+                return new BookingCreationOutcome(BookingCreationResult.ResourceInactive, null, null);
             }
 
             // when will the bookings never overlap
@@ -43,15 +44,15 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
 
             if (overlappingCounts >= resource.Capacity)
             {
-                var waitListCreated = await CreateWaitlistEntry(resource.Id, userId, dto.StartTime, dto.EndTime, token);
-                if (!waitListCreated)
+                var waitlistEntry = await CreateWaitlistEntry(resource.Id, userId, dto.StartTime, dto.EndTime, token);
+                if (waitlistEntry == null)
                 {
                     await transaction.RollbackAsync(token);
-                    return (BookingCreationResult.AlreadyWaitListed, null);
+                    return new BookingCreationOutcome(BookingCreationResult.AlreadyWaitListed, null, null);
                 }
 
                 await transaction.CommitAsync(token);
-                return (BookingCreationResult.WaitListed, null);
+                return new BookingCreationOutcome(BookingCreationResult.WaitListed, null, waitlistEntry);
             }
 
             var newBooking = new BookingEntity
@@ -70,9 +71,9 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
             await context.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
 
-            return (BookingCreationResult.Success,
+            return new BookingCreationOutcome(BookingCreationResult.Success,
                 new BookingResponseDto(newBooking.Id, newBooking.StartTime, newBooking.EndTime, newBooking.ResourceId,
-                    newBooking.Status, newBooking.UserId));
+                    newBooking.Status, newBooking.UserId), null);
         }
         catch
         {
@@ -183,7 +184,7 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
         }
     }
 
-    private async Task<bool> CreateWaitlistEntry(int resourceId, int userId, DateTime startTime, DateTime endTime,
+    private async Task<WaitlistEntryResponseDto?> CreateWaitlistEntry(int resourceId, int userId, DateTime startTime, DateTime endTime,
         CancellationToken token)
     {
         var waitListExists = await context.WaitlistEntries
@@ -192,7 +193,7 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
                 w.UserId == userId &&
                 w.Status == WaitlistStatus.Waiting, token);
 
-        if (waitListExists) return false;
+        if (waitListExists) return null;
 
         var waitListEntry = new WaitlistEntryEntity()
         {
@@ -207,6 +208,6 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
         await context.SaveChangesAsync(token);
         auditLogService.CreateLog(new CreateAuditLogDto(waitListEntry.Id, userId, ActionType.WaitlistEntryCreated));
         await context.SaveChangesAsync(token);
-        return true;
+        return new WaitlistEntryResponseDto(waitListEntry.Id, waitListEntry.ResourceId, waitListEntry.RequestedStartTime, waitListEntry.RequestedEndTime, waitListEntry.Status, waitListEntry.CreatedAt);
     }
 }

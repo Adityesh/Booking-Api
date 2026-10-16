@@ -271,7 +271,7 @@ public class WaitlistServiceTests(PostgresFixture fixture)
 
         await using (var context = CreateContext())
         {
-            var (outcome, _) = await NewBookingService(context).CreateAsync(dto, alice.Id, CancellationToken.None);
+            var (outcome, _, _) = await NewBookingService(context).CreateAsync(dto, alice.Id, CancellationToken.None);
             Assert.Equal(BookingCreationResult.WaitListed, outcome);
         }
 
@@ -280,7 +280,7 @@ public class WaitlistServiceTests(PostgresFixture fixture)
 
         await using (var context = CreateContext())
         {
-            var (outcome, _) = await NewBookingService(context).CreateAsync(dto, alice.Id, CancellationToken.None);
+            var (outcome, _, _) = await NewBookingService(context).CreateAsync(dto, alice.Id, CancellationToken.None);
             Assert.Equal(BookingCreationResult.WaitListed, outcome);
         }
 

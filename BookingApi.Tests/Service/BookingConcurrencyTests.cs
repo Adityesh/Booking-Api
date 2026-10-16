@@ -119,7 +119,7 @@ public class BookingConcurrencyTests(PostgresFixture fixture)
         {
             await gate.Task;
             await using var context = CreateContext();
-            var (outcome, _) = await NewBookingService(context).CreateAsync(dto, user.Id, CancellationToken.None);
+            var (outcome, _, _) = await NewBookingService(context).CreateAsync(dto, user.Id, CancellationToken.None);
             return outcome;
         }).ToList();
 

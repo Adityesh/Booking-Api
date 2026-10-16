@@ -1,4 +1,6 @@
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using BookingApi.Data;
 using BookingApi.Jobs;
 using BookingApi.Service;
@@ -13,6 +15,15 @@ public static class ConfigureService
 {
     extension(IServiceCollection services)
     {
+        // The JSON wire format, applied to BOTH option sets: MVC's JsonOptions is what controllers serialize with,
+        // while the OpenAPI generator reads the Minimal API (Http.Json) options. Setting only one makes the document
+        // disagree with what the API actually sends.
+        public void ConfigureJson()
+        {
+            services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(o => ApplyWireFormat(o.JsonSerializerOptions));
+            services.ConfigureHttpJsonOptions(o => ApplyWireFormat(o.SerializerOptions));
+        }
+
         public void ConfigureCors()
         {
             services.AddCors(options =>
@@ -74,5 +85,13 @@ public static class ConfigureService
         {
             services.AddHostedService<WaitlistExpirationService>();
         }
+    }
+
+    // Strict: the web defaults accept "42" for an int, so OpenAPI documents every int as integer|string.
+    // String enums: "Confirmed", not 0 — readable, and the same names the database already stores.
+    private static void ApplyWireFormat(JsonSerializerOptions options)
+    {
+        options.NumberHandling = JsonNumberHandling.Strict;
+        options.Converters.Add(new JsonStringEnumConverter());
     }
 }
