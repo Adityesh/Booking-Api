@@ -6,6 +6,8 @@ It started as a Month 3 portfolio project, and it is deliberately about the part
 
 **The headline result:** under 800 concurrent requests against a resource with capacity 3, the first implementation accepted **290 bookings**. After the fix it accepts **exactly 3**. The full story is [below](#the-concurrency-bug-290--3).
 
+![CI](https://github.com/<you>/<repo>/actions/workflows/ci.yml/badge.svg)
+
 ---
 
 ## Contents
@@ -13,6 +15,7 @@ It started as a Month 3 portfolio project, and it is deliberately about the part
 - [What it does](#what-it-does)
 - [Tech stack](#tech-stack)
 - [Run it locally](#run-it-locally)
+- [Run it with Docker](#run-it-with-docker)
 - [API overview](#api-overview)
 - [Architecture](#architecture)
 - [The concurrency bug: 290 → 3](#the-concurrency-bug-290--3)
@@ -94,6 +97,32 @@ CreateAdmin__Username="boss_01" CreateAdmin__Password="a-strong_password" \
 - The password follows the same rules as registration and is never printed.
 - It is idempotent: if an admin already exists it says so and exits `0`, so it is safe to run on every deploy. Exit code `1` means a real failure (invalid input, username taken, database error).
 - The command builds the app but never calls `Run()`, so no port is opened and the background job never starts.
+
+---
+
+## Run it with Docker
+
+The whole stack (PostgreSQL, the migrations and the API) starts with one command and needs nothing installed except Docker.
+
+```bash
+cp .env.example .env          # then edit the values (database password, JWT key, ...)
+docker compose up --build -d  # builds the images, starts Postgres, applies migrations, starts the API on :8080
+docker compose ps -a          # db: healthy, migrate: Exited (0), api: running
+```
+
+Create the first admin, then log in:
+
+```bash
+docker compose run --rm \
+  -e CreateAdmin__Username=boss_01 -e CreateAdmin__Password='a-strong_password' \
+  api create-admin
+```
+
+How it fits together:
+- `db` is PostgreSQL with a named volume, so data survives restarts (`docker compose down -v` deletes it).
+- `migrate` is a one-shot container that runs an **EF Core migration bundle** and exits. The `api` only starts after it succeeded, so migrations never race between API instances.
+- `api` is a multi-stage build: the SDK image compiles and publishes, and only the published output is copied into the small ASP.NET runtime image, which runs as a non-root user.
+- No secret is baked into an image. Configuration arrives as environment variables from `.env`, which is git-ignored.
 
 ---
 
@@ -191,7 +220,7 @@ A second request for the same resource waits at the `SELECT … FOR UPDATE` unti
 
 The 53300 errors disappeared as a side effect: serializing access to the row stopped hundreds of requests from holding connections at once.
 
-The same lock protects cancellation (where waitlist promotion happens) and waitlist withdrawal, and there are concurrency tests that assert the audit counts match the bookings.
+The same lock protects cancellation (where waitlist promotion happens) and waitlist withdrawal. Cancellation takes the lock **before** it reads the booking's status. A second race lived there: two simultaneous cancels of the same booking both saw `Confirmed`, both reported success and both wrote an audit entry. Locking first makes the loser see `Cancelled` and return an idempotent no-op. Concurrency tests assert that the audit counts match the bookings.
 
 ---
 
@@ -290,11 +319,11 @@ These are known and deliberate, and are listed so they are visible rather than d
 
 ## Project status and roadmap
 
-**Done and tested:** authentication and authorization, resources, bookings with proven concurrency safety, waitlist with promotion and expiration, audit logging with a read endpoint, admin reports, first-admin bootstrap.
+**Done and tested:** authentication and authorization, resources, bookings with proven concurrency safety, waitlist with promotion and expiration, audit logging with a read endpoint, admin reports, first-admin bootstrap, Docker and Compose setup with an EF migration bundle, and a GitHub Actions pipeline that builds, runs the full Testcontainers suite and builds both images.
 
 **Next:**
-- Dockerfile, `docker-compose` with PostgreSQL, and a GitHub Actions pipeline that runs the Testcontainers suite
-- Production deployment (secrets, migrations on deploy, Postgres connection pool sizing)
+- Deploy to a host (production secrets, a deploy step after CI, an image registry)
 - Benchmark the reporting index with `EXPLAIN (ANALYZE, BUFFERS)`
+- A compose-based smoke test in CI
 
 **Possible extensions:** refresh-token rotation, a React front end, real-time updates over SignalR, notifications through a transactional outbox and RabbitMQ, and Redis caching with rate limiting.
