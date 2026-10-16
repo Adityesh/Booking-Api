@@ -12,6 +12,8 @@ namespace BookingApi.Controllers;
 public class ReportsController(IReportService reportService) : ControllerBase
 {
     [HttpGet("most-booked-resources")]
+    [ProducesResponseType<List<MostBookedResourceDto>>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<IActionResult> MostBookedResources([FromQuery] ReportGetDto dto, IValidator<ReportGetDto> validator, CancellationToken token = default)
     {
         var validationResult = await validator.ValidateAsync(dto, token);
@@ -24,6 +26,8 @@ public class ReportsController(IReportService reportService) : ControllerBase
     }
 
     [HttpGet("average-booking-duration")]
+    [ProducesResponseType<AverageBookingDurationDto>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<IActionResult> AverageBookingDuration([FromQuery] ReportGetDto dto, IValidator<ReportGetDto> validator, CancellationToken token = default)
     {
         var validationResult = await validator.ValidateAsync(dto, token);
@@ -36,6 +40,8 @@ public class ReportsController(IReportService reportService) : ControllerBase
     }
 
     [HttpGet("bookings-per-day")]
+    [ProducesResponseType<List<BookingsPerDayDto>>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
     public async Task<IActionResult> BookingsPerDay([FromQuery] ReportGetDto dto, IValidator<ReportGetDto> validator, CancellationToken token = default)
     {
         var validationResult = await validator.ValidateAsync(dto, token);

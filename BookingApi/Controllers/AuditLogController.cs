@@ -1,3 +1,4 @@
+using BookingApi.Dto;
 using BookingApi.Dto.AuditLog;
 using BookingApi.Service;
 using FluentValidation;
@@ -12,6 +13,8 @@ namespace BookingApi.Controllers
     {
         [HttpGet]
         [Authorize(Roles = "Admin")]
+        [ProducesResponseType<PagedResult<AuditLogResponseDto>>(StatusCodes.Status200OK, "application/json")]
+        [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
         public async Task<IActionResult> GetAuditLogs([FromQuery] GetAuditLogDto dto,
             IValidator<GetAuditLogDto> validator, CancellationToken token = default)
 

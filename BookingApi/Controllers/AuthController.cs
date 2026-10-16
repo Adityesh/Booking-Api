@@ -11,6 +11,9 @@ namespace BookingApi.Controllers;
 public class AuthController(IAuthService authService) : ControllerBase
 {
     [HttpPost("login")]
+    [ProducesResponseType<AuthResponseDto>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<string>(StatusCodes.Status401Unauthorized, "text/plain")]
     public async Task<IActionResult> Login(LoginDto dto, IValidator<LoginDto> validator, CancellationToken token)
     {
         var validationResult = await validator.ValidateAsync(dto, token);
@@ -23,6 +26,9 @@ public class AuthController(IAuthService authService) : ControllerBase
     }
 
     [HttpPost("register")]
+    [ProducesResponseType<AuthResponseDto>(StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+    [ProducesResponseType<string>(StatusCodes.Status409Conflict, "text/plain")]
     public async Task<IActionResult> Register(RegisterDto dto, IValidator<RegisterDto> validator, CancellationToken token)
     {
         var validationResult = await validator.ValidateAsync(dto, token);

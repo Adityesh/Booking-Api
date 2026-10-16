@@ -13,6 +13,7 @@ namespace BookingApi.Controllers
     public class WaitlistController(IWaitlistService waitlistService) : ControllerBase
     {
         [HttpGet("me")]
+        [ProducesResponseType<List<WaitlistEntryResponseDto>>(StatusCodes.Status200OK, "application/json")]
         public async Task<IActionResult>  GetMine([FromQuery] WaitlistStatus? status, CancellationToken token)
         {
             var userId = User.GetUserId();
@@ -22,6 +23,9 @@ namespace BookingApi.Controllers
         }
 
         [HttpPost("{id:int}/withdraw")]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType<string>(StatusCodes.Status404NotFound, "text/plain")]
+        [ProducesResponseType<string>(StatusCodes.Status409Conflict, "text/plain")]
         public async Task<IActionResult> Withdraw(int id, CancellationToken token)
         {
             var userId = User.GetUserId();
