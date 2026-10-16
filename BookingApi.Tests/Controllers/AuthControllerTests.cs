@@ -1,4 +1,5 @@
 using BookingApi.Controllers;
+using BookingApi.Data;
 using BookingApi.Dto;
 using BookingApi.Dto.Auth;
 using BookingApi.Service;
@@ -16,7 +17,8 @@ public class AuthControllerTests
     private readonly Mock<IValidator<RegisterDto>> _registerValidator = new();
     private readonly AuthController _controller;
 
-    private static readonly AuthResponseDto SuccessResponse = new("jwt-token", "alice_01");
+    private static readonly AuthResponseDto SuccessResponse =
+        new(Token: "jwt-token", Username: "alice_01", Role: UserRole.User, ExpiresAt: DateTime.UtcNow.AddHours(1));
 
     public AuthControllerTests()
     {

@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using BookingApi.Data;
 using BookingApi.Dto;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -33,6 +34,13 @@ public sealed record AuthedUser(int Id, string Username, string Token);
 public abstract class ApiTestBase : IDisposable
 {
     protected const string Password = "Test_pass1";
+
+    // The API's wire format: camelCase web defaults plus enums as strings ("User", not 0). Deserialize responses with
+    // this, otherwise any DTO with an enum (AuthResponseDto.Role, ...) fails with a JsonException.
+    protected static readonly JsonSerializerOptions ApiJson = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() }
+    };
 
     private readonly string _connectionString;
 
@@ -151,7 +159,7 @@ public abstract class ApiTestBase : IDisposable
         using var client = CreateClient();
         var response = await client.PostAsJsonAsync(Routes.Login, new { username, password = Password });
         response.EnsureSuccessStatusCode();
-        var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>(ApiJson);
         return auth!.Token;
     }
 

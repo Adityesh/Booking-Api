@@ -16,8 +16,8 @@ public class AuthService(AppDbContext context, IConfiguration config) : IAuthSer
     {
         var user = await context.Users.FirstOrDefaultAsync(u => u.Username == dto.Username, token);
         if (user == null || !user.IsActive || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash)) return null;
-
-        return new AuthResponseDto(GenerateToken(user), user.Username);
+        var (userRole, expiresAt, jwtToken) = GenerateToken(user);
+        return new AuthResponseDto(jwtToken, user.Username, userRole, expiresAt);
     }
 
     public async Task<AuthResponseDto?> RegisterAsync(RegisterDto dto, CancellationToken token)
@@ -42,10 +42,11 @@ public class AuthService(AppDbContext context, IConfiguration config) : IAuthSer
             return null;
         }
 
-        return new AuthResponseDto(GenerateToken(newUser), newUser.Username);
+        var (userRole, expiresAt, jwtToken) = GenerateToken(newUser);
+        return new AuthResponseDto(jwtToken, newUser.Username, userRole, expiresAt);
     }
 
-    private string GenerateToken(UserEntity userEntity)
+    private (UserRole, DateTime, string) GenerateToken(UserEntity userEntity)
     {
         var claims = new[]
         {
@@ -57,14 +58,15 @@ public class AuthService(AppDbContext context, IConfiguration config) : IAuthSer
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(config["JwtSettings:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        var expiresAt = DateTime.UtcNow.AddMinutes(double.Parse(config["JwtSettings:ExpiryMinutes"]!));
         var token = new JwtSecurityToken(
             issuer: config["JwtSettings:Issuer"],
             audience: config["JwtSettings:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddMinutes(double.Parse(config["JwtSettings:ExpiryMinutes"]!)),
+            expires: expiresAt,
             signingCredentials: creds
         );
 
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        return (userEntity.Role, expiresAt, new JwtSecurityTokenHandler().WriteToken(token));
     }
 }

@@ -23,7 +23,7 @@ public class AuthenticationIntegrationTests(PostgresFixture fixture) : ApiTestBa
         var response = await client.PostAsJsonAsync(Routes.Register, new { username, password = Password });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>(ApiJson);
         Assert.False(string.IsNullOrWhiteSpace(auth!.Token));
         Assert.Equal(username, auth.Username);
 
@@ -72,7 +72,7 @@ public class AuthenticationIntegrationTests(PostgresFixture fixture) : ApiTestBa
         var response = await client.PostAsJsonAsync(Routes.Register, new { username, password = Password, role = "Admin" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>(ApiJson);
 
         await using (var context = CreateContext())
         {
@@ -96,7 +96,7 @@ public class AuthenticationIntegrationTests(PostgresFixture fixture) : ApiTestBa
         var response = await client.PostAsJsonAsync(Routes.Login, new { username = user.Username, password = Password });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
+        var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>(ApiJson);
         Assert.False(string.IsNullOrWhiteSpace(auth!.Token));
         Assert.Equal(user.Username, auth.Username);
     }

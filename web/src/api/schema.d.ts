@@ -825,6 +825,9 @@ export interface components {
         AuthResponseDto: {
             token: string;
             username: string;
+            role: components["schemas"]["UserRole"];
+            /** Format: date-time */
+            expiresAt: string;
         };
         AverageBookingDurationDto: {
             /** Format: int32 */
@@ -911,6 +914,8 @@ export interface components {
             capacity: number;
             type: components["schemas"]["ResourceType"];
         };
+        /** @enum {unknown} */
+        UserRole: "Admin" | "User";
         ValidationProblemDetails: {
             type?: null | string;
             title?: null | string;

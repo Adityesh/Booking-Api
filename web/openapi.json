@@ -891,7 +891,9 @@
       "AuthResponseDto": {
         "required": [
           "token",
-          "username"
+          "username",
+          "role",
+          "expiresAt"
         ],
         "type": "object",
         "properties": {
@@ -900,6 +902,13 @@
           },
           "username": {
             "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -1167,6 +1176,12 @@
             "$ref": "#/components/schemas/ResourceType"
           }
         }
+      },
+      "UserRole": {
+        "enum": [
+          "Admin",
+          "User"
+        ]
       },
       "ValidationProblemDetails": {
         "type": "object",
