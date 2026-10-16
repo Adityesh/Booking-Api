@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/auth/authContext'
 import { cn } from '@/lib/utils'
+import { ThemeToggle } from '@/theme/ThemeToggle'
 
 const userLinks = [
   { to: '/resources', label: 'Resources' },
@@ -64,6 +65,7 @@ export function AppLayout() {
                 <span className="bg-muted text-muted-foreground ml-2 rounded px-1.5 py-0.5 text-xs">Admin</span>
               )}
             </span>
+            <ThemeToggle />
             <Button variant="outline" size="sm" onClick={signOut}>
               Sign out
             </Button>

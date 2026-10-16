@@ -6,6 +6,7 @@ import { createAppQueryClient } from './api/queryClient'
 import { AuthProvider } from './auth/AuthProvider'
 import { Toaster } from './components/ui/sonner'
 import { router } from './router'
+import { ThemeProvider } from './theme/ThemeProvider'
 import './index.css'
 
 const queryClient = createAppQueryClient()
@@ -14,11 +15,13 @@ const queryClient = createAppQueryClient()
 // read it on every route).
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RouterProvider router={router} />
-        <Toaster position="top-center" />
-      </AuthProvider>
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <RouterProvider router={router} />
+          <Toaster position="top-center" />
+        </AuthProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   </StrictMode>,
 )
