@@ -27,9 +27,6 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
       restoreMocks: true,
-      // There are no test files right now (the probe page's tests were removed). Without this, `vitest run` exits 1
-      // with "No test files found", which would fail CI. Remove once real tests exist again.
-      passWithNoTests: true,
     },
   }
 })

@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router'
 import { toast } from 'sonner'
 import { createBooking } from '@/api/bookings'
 import { fieldErrors } from '@/api/client'
-import { bookingQuery, myWaitlistQuery } from '@/api/queries'
+import { bookingListsKey, bookingQuery, myWaitlistQuery } from '@/api/queries'
 import { ErrorAlert } from '@/components/ErrorAlert'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
@@ -33,6 +33,7 @@ export function BookingForm({ resourceId }: { resourceId: number }) {
       if (outcome.kind === 'booked') {
         // Seed the detail page's cache with the 201 body, so it renders without another request.
         queryClient.setQueryData(bookingQuery(outcome.booking.id).queryKey, outcome.booking)
+        void queryClient.invalidateQueries({ queryKey: bookingListsKey })
         toast.success('Booked.')
         navigate(`/bookings/${outcome.booking.id}`)
       } else {

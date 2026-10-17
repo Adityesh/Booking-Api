@@ -1,6 +1,7 @@
 import type { AuditLogQuery } from '@/api/queries'
 import type { components } from '@/api/schema'
 import { localDateToUtcIso } from '@/lib/datetime'
+import { readPaging, writePaging, type PageSize } from '@/lib/paging'
 import { parseId } from '@/lib/params'
 
 export type ActionType = components['schemas']['ActionType']
@@ -16,9 +17,6 @@ export const actionTypes: ActionType[] = [
   'ResourceUpdated',
   'ResourceDeleted',
 ]
-
-export const pageSizes = [20, 50, 100] as const
-type PageSize = (typeof pageSizes)[number]
 
 // The audit log's state lives in the URL (?action=…&from=…&page=2): a filtered view is a shareable link and the back
 // button works. Dates are calendar days ("YYYY-MM-DD") in the viewer's time zone.
@@ -38,15 +36,13 @@ const isDate = (value: string | null): value is string =>
 // Hand-edited or stale URLs: anything unrecognised falls back to "no filter" instead of a 400 from the API.
 export function readFilters(params: URLSearchParams): AuditLogFilters {
   const action = params.get('action')
-  const pageSize = Number(params.get('pageSize'))
   return {
     action: actionTypes.includes(action as ActionType) ? (action as ActionType) : null,
     userId: parseId(params.get('userId') ?? undefined),
     systemOnly: params.get('systemOnly') === 'true',
     from: isDate(params.get('from')) ? params.get('from') : null,
     to: isDate(params.get('to')) ? params.get('to') : null,
-    page: parseId(params.get('page') ?? undefined) ?? 1,
-    pageSize: pageSizes.includes(pageSize as PageSize) ? (pageSize as PageSize) : 20,
+    ...readPaging(params),
   }
 }
 
@@ -58,9 +54,7 @@ export function writeFilters(filters: AuditLogFilters): URLSearchParams {
   if (filters.systemOnly) params.set('systemOnly', 'true')
   if (filters.from) params.set('from', filters.from)
   if (filters.to) params.set('to', filters.to)
-  if (filters.page > 1) params.set('page', String(filters.page))
-  if (filters.pageSize !== 20) params.set('pageSize', String(filters.pageSize))
-  return params
+  return writePaging(params, filters)
 }
 
 // The API's window is half-open (>= From, < To). "To 16 Oct" in the UI means "through the end of the 16th", so To is

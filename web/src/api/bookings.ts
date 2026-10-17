@@ -4,6 +4,10 @@ import type { components } from './schema'
 export type BookingResponse = components['schemas']['BookingResponseDto']
 export type WaitlistEntryResponse = components['schemas']['WaitlistEntryResponseDto']
 export type CreateBookingRequest = components['schemas']['CreateBookingDto']
+export type BookingListItem = components['schemas']['BookingListItemDto']
+export type BookingStatus = components['schemas']['BookingStatus']
+
+export const bookingStatuses: BookingStatus[] = ['Confirmed', 'Cancelled']
 
 export type CreateBookingOutcome =
   | { kind: 'booked'; booking: BookingResponse }
