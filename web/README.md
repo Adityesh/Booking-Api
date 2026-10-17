@@ -1,32 +1,28 @@
-# React + TypeScript + Vite
+# BookingApi web app
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The React + TypeScript front end for BookingApi: Vite, TanStack Query, React Router, Tailwind CSS with shadcn/ui, and
+an API client typed from the backend's OpenAPI document.
 
-Currently, two official plugins are available:
+Setup, scripts, design decisions and the production nginx setup are described in the
+[root README](../README.md#the-web-app).
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm ci
+npm run dev        # http://localhost:5173, proxies /api to the API on :8080
+npm test
+npm run api:sync   # after an API change: refresh openapi.json and src/api/schema.d.ts
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Layout:
+
+```
+src/
+├── api/         generated schema, the API client (auth + error handling), query definitions
+├── auth/        in-memory session, route guards
+├── components/  shared components; ui/ holds the shadcn/ui primitives
+├── layouts/     app and sign-in layouts
+├── lib/         date/time, paging and form helpers
+├── pages/       one file per route; admin/ for the admin screens, with their URL filter helpers
+├── theme/       light / dark / system theme
+└── test/        Vitest setup and the MSW server
+```

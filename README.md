@@ -1,6 +1,6 @@
 # BookingApi
 
-A resource-booking REST API (rooms, equipment, anything with a capacity) built with **ASP.NET Core on .NET 10**, **EF Core** and **PostgreSQL**.
+A resource-booking system (rooms, equipment, anything with a capacity): a REST API built with **ASP.NET Core on .NET 10**, **EF Core** and **PostgreSQL**, and a **React + TypeScript** single-page app on top of it. The whole stack starts with one `docker compose up`.
 
 It started as a Month 3 portfolio project, and it is deliberately about the parts of backend work that are easy to get wrong: **concurrency, transactional integrity, authorization and honest testing**, rather than CRUD breadth.
 
@@ -16,6 +16,7 @@ It started as a Month 3 portfolio project, and it is deliberately about the part
 - [Tech stack](#tech-stack)
 - [Run it locally](#run-it-locally)
 - [Run it with Docker](#run-it-with-docker)
+- [The web app](#the-web-app)
 - [API overview](#api-overview)
 - [Architecture](#architecture)
 - [The concurrency bug: 290 → 3](#the-concurrency-bug-290--3)
@@ -47,6 +48,10 @@ It started as a Month 3 portfolio project, and it is deliberately about the part
 | Validation | FluentValidation (invoked explicitly in controllers) |
 | Tests | xUnit, Moq, Testcontainers (real PostgreSQL), `WebApplicationFactory` |
 | Load testing | NBomber |
+| Web app | React 19, TypeScript, Vite, TanStack Query, React Router, Tailwind CSS + shadcn/ui |
+| API client | Types generated from the OpenAPI document (`openapi-typescript`), `openapi-fetch` |
+| Web tests | Vitest, React Testing Library, MSW |
+| Serving | nginx (static files + `/api` reverse proxy) |
 
 ---
 
@@ -102,13 +107,15 @@ CreateAdmin__Username="boss_01" CreateAdmin__Password="a-strong_password" \
 
 ## Run it with Docker
 
-The whole stack (PostgreSQL, the migrations and the API) starts with one command and needs nothing installed except Docker.
+The whole stack (PostgreSQL, the migrations, the API and the web app) starts with one command and needs nothing installed except Docker.
 
 ```bash
 cp .env.example .env          # then edit the values (database password, JWT key, ...)
-docker compose up --build -d  # builds the images, starts Postgres, applies migrations, starts the API on :8080
-docker compose ps -a          # db: healthy, migrate: Exited (0), api: running
+docker compose up --build -d  # builds the images, starts Postgres, applies migrations, starts the API and the web app
+docker compose ps -a          # db: healthy, migrate: Exited (0), api and web: running
 ```
+
+Then open **http://localhost:3000**. The API is also published on `:8080` for the Vite dev server and API tools.
 
 Create the first admin, then log in:
 
@@ -122,7 +129,62 @@ How it fits together:
 - `db` is PostgreSQL with a named volume, so data survives restarts (`docker compose down -v` deletes it).
 - `migrate` is a one-shot container that runs an **EF Core migration bundle** and exits. The `api` only starts after it succeeded, so migrations never race between API instances.
 - `api` is a multi-stage build: the SDK image compiles and publishes, and only the published output is copied into the small ASP.NET runtime image, which runs as a non-root user.
+- `web` is also multi-stage: a Node image runs `npm ci` and the production build (type check included), and only the static files are copied into an `nginx` image. nginx serves them and proxies `/api` to the `api` service, so the browser talks to a single origin and no CORS is needed. See [Serving in production](#serving-in-production).
 - No secret is baked into an image. Configuration arrives as environment variables from `.env`, which is git-ignored.
+
+---
+
+## The web app
+
+A React single-page app in [`web/`](web/) that covers every endpoint:
+
+- **Users:** register and sign in, browse resources, book a time slot (a full slot puts you on the waitlist instead), see upcoming and past bookings, cancel (the 2-hour rule is explained in the UI), and withdraw from the waitlist.
+- **Admins:** manage resources (create, edit, deactivate), see and cancel every booking without the 2-hour limit, read the audit log, and view the three reports.
+- Light, dark and system themes.
+
+### Develop it
+
+Prerequisites: Node 24 and a running API.
+
+```bash
+docker compose up -d db migrate api   # the API on :8080 (or run it with `dotnet run`, see below)
+cd web
+npm ci
+npm run dev                           # http://localhost:5173
+```
+
+The Vite dev server proxies `/api` to `http://localhost:8080`. To use an API started with `dotnet run` instead, set `API_PROXY_TARGET`. The compose API is the simpler default: the `http` profile on `:5013` answers with a redirect to HTTPS, which is a different origin.
+
+| Script | What it does |
+|---|---|
+| `npm run dev` | Dev server with hot reload |
+| `npm run build` | Type check (`tsc -b`) and production build into `dist/` |
+| `npm run lint` | oxlint |
+| `npm run typecheck` | Type check only |
+| `npm test` | Vitest, once (`npm run test:watch` to keep it running) |
+| `npm run api:sync` | Download the OpenAPI document and regenerate `src/api/schema.d.ts` |
+
+**When the API contract changes,** run `npm run api:sync`. The document is only served in Development, so it reads from `dotnet run --project BookingApi` on `:5013` (override with `OPENAPI_URL`). Both `openapi.json` and the generated types are committed, so the build never needs a running API.
+
+### How it is built
+
+- **The API contract is the single source of truth.** Request and response types are generated from the OpenAPI document, never written by hand, so a backend change that breaks the UI fails the type check. A backend test (`OpenApiContractTests`) keeps that document precise: every success response must declare one JSON content type.
+- **The token lives in memory, not in `localStorage`,** where any injected script could read it. The cost is that a page reload signs you out; the planned fix is a refresh token in an `httpOnly` cookie. Auth is behind one provider, so that change stays local.
+- **One API client handles every error shape:** plain-text `401`/`409`, `ProblemDetails` `400` with field errors (shown next to the matching input), and the `201` vs `202` (waitlisted) outcomes of creating a booking. Components never parse response bodies. A `401` on an authenticated request ends the session and sends you back to the page you were on after signing in again.
+- **Server state is TanStack Query.** Query keys are defined in one file and are hierarchical, so a cancel refreshes the booking's page and every list it appears in with a single invalidation.
+- **Filters and paging live in the URL** (`/admin/bookings?userId=7&page=2`), so a filtered view is a link you can share and the back button works.
+- **Time:** the API is UTC with half-open windows. The UI shows local time and always sends UTC `Z` timestamps. "To 16 Oct" in a filter means "through the end of the 16th", so it is sent as local midnight of the 17th. Reports group by UTC day, so their date pickers are UTC days and say so.
+- **The UI mirrors the API's rules but never replaces them.** Filter forms check the same combinations as the validators (date order, ids), registration checks that the passwords match, and the cancel button knows the 2-hour rule, but the API's answer is always what is shown.
+
+### Serving in production
+
+`web/Dockerfile` builds the app and copies only `dist/` into `nginx:1.30-alpine`. [`web/nginx.conf`](web/nginx.conf):
+
+- **SPA fallback:** `try_files $uri $uri/ /index.html`, so a reload on `/bookings/42` (a client-side route, not a file) still loads the app.
+- **Missing assets return `404`,** not `index.html`, so a stale script URL fails clearly instead of being run as HTML.
+- **Caching:** files in `/assets/` have content-hashed names and are cached for a year (`immutable`); `index.html` is `no-cache`, so a new deploy is picked up on the next load.
+- **gzip** for JS, CSS, JSON and SVG.
+- **`/api/` is proxied to `http://api:8080`** with the usual forwarding headers. There is no trailing slash on `proxy_pass`, which keeps the `/api` prefix in the forwarded path.
 
 ---
 
@@ -138,6 +200,8 @@ All endpoints except register and login require a JWT (`Authorization: Bearer <t
 | GET | `/api/resource/all` | admin | List every resource, including inactive |
 | POST / PUT / DELETE | `/api/resource` … | admin | Create, update, soft-delete a resource |
 | POST | `/api/booking` | any user | Create a booking (or join the waitlist if full, `202`) |
+| GET | `/api/booking/me` | any user | My bookings, paged; filter by status and `when` (`Upcoming` / `Past`) |
+| GET | `/api/booking` | admin | Every booking, paged; filter by user, resource, status and start time |
 | GET | `/api/booking/{id}` | owner or admin | Read a booking |
 | POST | `/api/booking/{id}/cancel` | owner or admin | Cancel (idempotent, 2-hour rule for users) |
 | GET | `/api/waitlist/me` | any user | My waitlist entries |
@@ -177,6 +241,7 @@ BookingApi/
 ├── Extensions/      DI registration grouped with C# 14 extension blocks
 BookingApi.Tests/    unit, service, concurrency and integration tests
 BookingApi.LoadTests/ NBomber stress test (run manually against a live instance)
+web/                 React app, its Dockerfile and nginx.conf
 ```
 
 **Conventions worth knowing**
@@ -282,6 +347,12 @@ A unit test cannot prove that `[Authorize(Roles = "Admin")]` actually blocks a c
 - The first-admin tests create a fresh empty database per test, because "no admin exists" is a global condition.
 - Integration tests assert a *control* first (the owner succeeds), so a later `404` or `401` can only mean what the test claims.
 
+**Web app tests** (`cd web && npm test`) use Vitest, React Testing Library and MSW, and run in a few seconds without Docker:
+- The URL filter helpers: defaults, fallbacks for hand-edited URLs, round trips, and the local-midnight `To` bound (checked in local time, so the tests pass in any time zone).
+- The cancel button: the 2-hour rule for users, the admin bypass, the request it sends, and which cached queries it refreshes.
+
+Requests go through the real API client and are answered by MSW. MSW is started when the setup file loads, before any test imports the client, because `openapi-fetch` keeps the `fetch` function it was created with.
+
 **Load test.** `BookingApi.LoadTests` is an NBomber console project that fires concurrent booking requests at a live instance. It is how the overbooking bug was found:
 
 ```bash
@@ -314,16 +385,23 @@ These are known and deliberate, and are listed so they are visible rather than d
 - **First-admin creation has a narrow race** if two runs with *different* usernames execute at the same instant (there is no row to lock). A `pg_advisory_xact_lock` would close it; it was judged not worth the complexity for a one-off operator command.
 - **Admins cannot withdraw someone else's waitlist entry yet.**
 - **A report window is on the booking's start time only**: a booking that starts inside the window and ends after it counts in full.
+- **Reloading the web app signs you out,** because the token is kept in memory only (see [How it is built](#how-it-is-built)).
+- **Deactivating a resource cannot be undone yet**: there is no reactivate endpoint.
+- **Reports group by UTC day**, not by the viewer's time zone.
+- **Right after `docker compose up`,** the first `/api` calls can return `502` for a moment: nginx waits for the API container to start, not for it to be ready, because the API has no health check yet.
 
 ---
 
 ## Project status and roadmap
 
-**Done and tested:** authentication and authorization, resources, bookings with proven concurrency safety, waitlist with promotion and expiration, audit logging with a read endpoint, admin reports, first-admin bootstrap, Docker and Compose setup with an EF migration bundle, and a GitHub Actions pipeline that builds, runs the full Testcontainers suite and builds both images.
+**Done and tested:** authentication and authorization, resources, bookings with proven concurrency safety, booking lists for users and admins, waitlist with promotion and expiration, audit logging with a read endpoint, admin reports, first-admin bootstrap, a React web app covering every endpoint, Docker and Compose setup (EF migration bundle, nginx for the web app), and a GitHub Actions pipeline that builds, runs the full Testcontainers suite and builds both API images.
 
 **Next:**
+- A `web` job in CI: lint, type check, tests, build, and the web image
+- A health endpoint on the API, so `web` can wait until the API is ready
+- Sign the user out when the token expires, not only on the next failed request
 - Deploy to a host (production secrets, a deploy step after CI, an image registry)
 - Benchmark the reporting index with `EXPLAIN (ANALYZE, BUFFERS)`
 - A compose-based smoke test in CI
 
-**Possible extensions:** refresh-token rotation, a React front end, real-time updates over SignalR, notifications through a transactional outbox and RabbitMQ, and Redis caching with rate limiting.
+**Possible extensions:** refresh-token rotation (which also fixes sign-out on reload), real-time updates over SignalR, notifications through a transactional outbox and RabbitMQ, and Redis caching with rate limiting.
