@@ -181,7 +181,43 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: {
+            parameters: {
+                query?: {
+                    UserId?: number;
+                    ResourceId?: number;
+                    Status?: components["schemas"]["BookingStatus"];
+                    From?: string;
+                    To?: string;
+                    Page?: number;
+                    PageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PagedResultOfBookingListItemDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ValidationProblemDetails"];
+                    };
+                };
+            };
+        };
         put?: never;
         post: {
             parameters: {
@@ -344,6 +380,55 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/Booking/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: {
+                    Status?: components["schemas"]["BookingStatus"];
+                    When?: components["schemas"]["BookingTimeFrame"];
+                    Page?: number;
+                    PageSize?: number;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["PagedResultOfBookingListItemDto"];
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/problem+json": components["schemas"]["ValidationProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -835,6 +920,21 @@ export interface components {
             /** Format: double */
             averageMinutes: null | number;
         };
+        BookingListItemDto: {
+            /** Format: int32 */
+            id: number;
+            /** Format: int32 */
+            resourceId: number;
+            resourceName: string;
+            /** Format: date-time */
+            startTime: string;
+            /** Format: date-time */
+            endTime: string;
+            status: components["schemas"]["BookingStatus"];
+            /** Format: int32 */
+            userId: number;
+            username: string;
+        };
         BookingResponseDto: {
             /** Format: int32 */
             id: number;
@@ -856,6 +956,8 @@ export interface components {
         };
         /** @enum {unknown} */
         BookingStatus: "Confirmed" | "Cancelled";
+        /** @enum {unknown} */
+        BookingTimeFrame: "Upcoming" | "Past" | null;
         CreateBookingDto: {
             /** Format: date-time */
             startTime: string;
@@ -892,6 +994,15 @@ export interface components {
             /** Format: int32 */
             count: number;
             data: components["schemas"]["AuditLogResponseDto"][];
+        };
+        PagedResultOfBookingListItemDto: {
+            /** Format: int32 */
+            page: number;
+            /** Format: int32 */
+            pageSize: number;
+            /** Format: int32 */
+            count: number;
+            data: components["schemas"]["BookingListItemDto"][];
         };
         RegisterDto: {
             username: string;

@@ -1,4 +1,5 @@
 using BookingApi.Data;
+using BookingApi.Dto;
 using BookingApi.Dto.AuditLog;
 using BookingApi.Dto.Booking;
 using BookingApi.Dto.Waitlist;
@@ -22,13 +23,13 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
             if (resource == null)
             {
                 await transaction.RollbackAsync(token);
-                return new BookingCreationOutcome(BookingCreationResult.ResourceNotFound, null, null);
+                return new BookingCreationOutcome(BookingCreationResult.ResourceNotFound);
             }
 
             if (!resource.IsActive)
             {
                 await transaction.RollbackAsync(token);
-                return new BookingCreationOutcome(BookingCreationResult.ResourceInactive, null, null);
+                return new BookingCreationOutcome(BookingCreationResult.ResourceInactive);
             }
 
             // when will the bookings never overlap
@@ -48,7 +49,7 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
                 if (waitlistEntry == null)
                 {
                     await transaction.RollbackAsync(token);
-                    return new BookingCreationOutcome(BookingCreationResult.AlreadyWaitListed, null, null);
+                    return new BookingCreationOutcome(BookingCreationResult.AlreadyWaitListed);
                 }
 
                 await transaction.CommitAsync(token);
@@ -73,7 +74,7 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
 
             return new BookingCreationOutcome(BookingCreationResult.Success,
                 new BookingResponseDto(newBooking.Id, newBooking.StartTime, newBooking.EndTime, newBooking.ResourceId,
-                    newBooking.Status, newBooking.UserId), null);
+                    newBooking.Status, newBooking.UserId));
         }
         catch
         {
@@ -144,6 +145,86 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
         }
     }
 
+    public async Task<PagedResult<BookingListItemDto>> GetAdminBookingsAsync(GetAdminBookingDto dto,
+        CancellationToken token)
+    {
+        var baseQuery = context.Bookings.AsQueryable();
+
+        if (dto.UserId.HasValue)
+        {
+            baseQuery = baseQuery.Where(b => b.UserId == dto.UserId);
+        }
+
+        if (dto.ResourceId.HasValue)
+        {
+            baseQuery = baseQuery.Where(b => b.ResourceId == dto.ResourceId);
+        }
+
+        if (dto.Status.HasValue)
+        {
+            baseQuery = baseQuery.Where(b => b.Status == dto.Status);
+        }
+
+        if (dto.From.HasValue)
+        {
+            baseQuery = baseQuery.Where(x => x.StartTime >= dto.From.Value.UtcDateTime);
+        }
+
+        if (dto.To.HasValue)
+        {
+            baseQuery = baseQuery.Where(x => x.StartTime < dto.To.Value.UtcDateTime);
+        }
+
+        var totalCount = await baseQuery.CountAsync(token);
+
+        var results = await baseQuery
+            .OrderByDescending(x => x.StartTime)
+            .ThenByDescending(x => x.Id)
+            .Skip((dto.Page - 1) * dto.PageSize)
+            .Take(dto.PageSize)
+            .Select(x =>
+                new BookingListItemDto(x.Id, x.ResourceId, x.Resource.Name, x.StartTime, x.EndTime, x.Status, x.UserId, x.User.Username))
+            .ToListAsync(token);
+
+        return new PagedResult<BookingListItemDto>(dto.Page, dto.PageSize, totalCount, results);
+    }
+
+    public async Task<PagedResult<BookingListItemDto>> GetMyBookingsAsync(GetMyBookingDto dto, int userId,
+        CancellationToken token)
+    {
+        var now = DateTime.UtcNow;
+        var baseQuery = context.Bookings
+            .Where(x => x.UserId == userId);
+
+        if (dto.Status.HasValue)
+        {
+            baseQuery = baseQuery.Where(b => b.Status == dto.Status);
+        }
+
+        baseQuery = dto.When switch
+        {
+            BookingTimeFrame.Upcoming => baseQuery.Where(x => x.EndTime > now)
+                .OrderBy(x => x.StartTime)
+                .ThenBy(x => x.Id),
+            BookingTimeFrame.Past => baseQuery.Where(x => x.EndTime <= now)
+                .OrderByDescending(x => x.StartTime)
+                .ThenByDescending(x => x.Id),
+            _ => baseQuery.OrderByDescending(x => x.StartTime)
+                .ThenByDescending(x => x.Id)
+        };
+
+        var totalCount = await baseQuery.CountAsync(token);
+
+        var results = await baseQuery
+            .Skip((dto.Page - 1) * dto.PageSize)
+            .Take(dto.PageSize)
+            .Select(x =>
+                new BookingListItemDto(x.Id, x.ResourceId, x.Resource.Name, x.StartTime, x.EndTime, x.Status, x.UserId, x.User.Username))
+            .ToListAsync(token);
+
+        return new PagedResult<BookingListItemDto>(dto.Page, dto.PageSize, totalCount, results);
+    }
+
     private async Task PromoteWaitList(ResourceEntity resource, CancellationToken token)
     {
         // The caller already holds the FOR UPDATE lock on this resource row.
@@ -184,7 +265,8 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
         }
     }
 
-    private async Task<WaitlistEntryResponseDto?> CreateWaitlistEntry(int resourceId, int userId, DateTime startTime, DateTime endTime,
+    private async Task<WaitlistEntryResponseDto?> CreateWaitlistEntry(int resourceId, int userId, DateTime startTime,
+        DateTime endTime,
         CancellationToken token)
     {
         var waitListExists = await context.WaitlistEntries
@@ -208,6 +290,8 @@ public class BookingService(AppDbContext context, IAuditLogService auditLogServi
         await context.SaveChangesAsync(token);
         auditLogService.CreateLog(new CreateAuditLogDto(waitListEntry.Id, userId, ActionType.WaitlistEntryCreated));
         await context.SaveChangesAsync(token);
-        return new WaitlistEntryResponseDto(waitListEntry.Id, waitListEntry.ResourceId, waitListEntry.RequestedStartTime, waitListEntry.RequestedEndTime, waitListEntry.Status, waitListEntry.CreatedAt);
+        return new WaitlistEntryResponseDto(waitListEntry.Id, waitListEntry.ResourceId,
+            waitListEntry.RequestedStartTime, waitListEntry.RequestedEndTime, waitListEntry.Status,
+            waitListEntry.CreatedAt);
     }
 }

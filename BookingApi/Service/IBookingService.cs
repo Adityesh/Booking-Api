@@ -1,3 +1,4 @@
+using BookingApi.Dto;
 using BookingApi.Dto.Booking;
 
 namespace BookingApi.Service;
@@ -8,5 +9,10 @@ public interface IBookingService
     public Task<BookingResponseDto?> GetByIdAsync(int id, bool isAdmin, int userId, CancellationToken token = default);
 
     public Task<BookingCancellationResult> CancelAsync(int id, int userId, bool isAdmin,
+        CancellationToken token = default);
+
+    public Task<PagedResult<BookingListItemDto>> GetAdminBookingsAsync(GetAdminBookingDto dto, CancellationToken token = default);
+
+    public Task<PagedResult<BookingListItemDto>> GetMyBookingsAsync(GetMyBookingDto dto, int userId,
         CancellationToken token = default);
 }

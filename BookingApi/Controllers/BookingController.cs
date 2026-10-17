@@ -1,3 +1,4 @@
+using BookingApi.Dto;
 using BookingApi.Dto.Booking;
 using BookingApi.Dto.Waitlist;
 using BookingApi.Extensions;
@@ -75,6 +76,41 @@ namespace BookingApi.Controllers
                     "Bookings can only be cancelled upto 2 hours before the start time."),
                 _ => Problem()
             };
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        [ProducesResponseType<PagedResult<BookingListItemDto>>(StatusCodes.Status200OK, "application/json")]
+        [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+        public async Task<ActionResult<PagedResult<BookingListItemDto>>> GetBookings([FromQuery] GetAdminBookingDto dto,
+            IValidator<GetAdminBookingDto> validator,
+            CancellationToken token = default)
+        {
+            var validationResult = await validator.ValidateAsync(dto, token);
+            if (!validationResult.IsValid)
+                return ValidationProblem(new ValidationProblemDetails(
+                    validationResult.ToDictionary()));
+
+            var response = await bookingService.GetAdminBookingsAsync(dto, token);
+            return Ok(response);
+        }
+
+        [HttpGet("me")]
+        [Authorize]
+        [ProducesResponseType<PagedResult<BookingListItemDto>>(StatusCodes.Status200OK, "application/json")]
+        [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, "application/problem+json")]
+        public async Task<ActionResult<PagedResult<BookingListItemDto>>> GetMyBookings([FromQuery] GetMyBookingDto dto,
+            IValidator<GetMyBookingDto> validator,
+            CancellationToken token = default)
+        {
+            var validationResult = await validator.ValidateAsync(dto, token);
+            if (!validationResult.IsValid)
+                return ValidationProblem(new ValidationProblemDetails(
+                    validationResult.ToDictionary()));
+
+            var userId = User.GetUserId();
+            var response = await bookingService.GetMyBookingsAsync(dto, userId, token);
+            return Ok(response);
         }
     }
 }

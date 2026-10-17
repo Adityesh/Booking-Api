@@ -20,6 +20,8 @@ public class AuthorizationIntegrationTests(PostgresFixture fixture) : ApiTestBas
         { "PUT", $"{Routes.Resource}/1" },
         { "DELETE", $"{Routes.Resource}/1" },
         { "POST", Routes.Booking },
+        { "GET", Routes.Booking },
+        { "GET", $"{Routes.Booking}/me" },
         { "GET", $"{Routes.Booking}/1" },
         { "POST", $"{Routes.Booking}/1/cancel" },
         { "GET", $"{Routes.Waitlist}/me" },
@@ -32,7 +34,8 @@ public class AuthorizationIntegrationTests(PostgresFixture fixture) : ApiTestBas
         { "GET", Routes.AuditLog },
         { "POST", Routes.Resource },
         { "PUT", $"{Routes.Resource}/1" },
-        { "DELETE", $"{Routes.Resource}/1" }
+        { "DELETE", $"{Routes.Resource}/1" },
+        { "GET", Routes.Booking }
     };
 
     private static HttpRequestMessage Request(string method, string url) =>
