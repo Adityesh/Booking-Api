@@ -5,6 +5,9 @@ on:
     branches: [main]          # run on every push to main...
   pull_request:               # ...and on every pull request
 
+permissions:
+  contents: read              # the job token can only read the repo, even if a dependency misbehaves
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -17,8 +20,28 @@ jobs:
       - run: dotnet build --no-restore -c Release
       - run: dotnet test --no-build -c Release  # starts a Postgres container via Testcontainers
 
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24                                # same major as FROM node:24-alpine in web/Dockerfile
+          cache: npm
+          cache-dependency-path: web/package-lock.json    # uses: steps ignore defaults.run, so the path needs web/
+      - run: npm ci
+      - run: npm run lint -- --deny-warnings              # oxlint exits 0 on warnings unless told otherwise
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          TZ: Asia/Kolkata                                # runners are UTC, which hides local-vs-UTC date bugs
+      - run: npm run build
+
   docker:
-    needs: test                                # only runs if the tests passed
+    needs: [test, web]                                # only runs if both test suites passed
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,3 +49,5 @@ jobs:
         run: docker build --target final -t bookingapi:ci .
       - name: Build migration image
         run: docker build --target migrate -t bookingapi-migrate:ci .
+      - name: Build web image
+        run: docker build -t bookingapi-web:ci web

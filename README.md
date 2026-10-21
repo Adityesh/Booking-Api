@@ -394,10 +394,9 @@ These are known and deliberate, and are listed so they are visible rather than d
 
 ## Project status and roadmap
 
-**Done and tested:** authentication and authorization, resources, bookings with proven concurrency safety, booking lists for users and admins, waitlist with promotion and expiration, audit logging with a read endpoint, admin reports, first-admin bootstrap, a React web app covering every endpoint, Docker and Compose setup (EF migration bundle, nginx for the web app), and a GitHub Actions pipeline that builds, runs the full Testcontainers suite and builds both API images.
+**Done and tested:** authentication and authorization, resources, bookings with proven concurrency safety, booking lists for users and admins, waitlist with promotion and expiration, audit logging with a read endpoint, admin reports, first-admin bootstrap, a React web app covering every endpoint, Docker and Compose setup (EF migration bundle, nginx for the web app), and a GitHub Actions pipeline that runs the full Testcontainers suite and, in parallel, the web app's lint, type check, tests and build, then builds the API, migration and web images.
 
 **Next:**
-- A `web` job in CI: lint, type check, tests, build, and the web image
 - A health endpoint on the API, so `web` can wait until the API is ready
 - Sign the user out when the token expires, not only on the next failed request
 - Deploy to a host (production secrets, a deploy step after CI, an image registry)
