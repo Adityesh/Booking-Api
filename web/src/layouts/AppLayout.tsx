@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/auth/authContext'
@@ -38,6 +39,8 @@ function NavItem({ to, label }: { to: string; label: string }) {
 export function AppLayout() {
   // No navigate() here: dropping the user makes <RequireAuth> redirect to /login. Navigating as well would race it.
   const { user, signOut } = useAuth()
+  // Signing out waits for the server to revoke the refresh token; no second click meanwhile.
+  const [signingOut, setSigningOut] = useState(false)
 
   return (
     <div className="min-h-svh">
@@ -66,7 +69,15 @@ export function AppLayout() {
               )}
             </span>
             <ThemeToggle />
-            <Button variant="outline" size="sm" onClick={signOut}>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={signingOut}
+              onClick={() => {
+                setSigningOut(true)
+                void signOut()
+              }}
+            >
               Sign out
             </Button>
           </div>

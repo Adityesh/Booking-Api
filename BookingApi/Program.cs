@@ -1,5 +1,5 @@
 using BookingApi.Dto.Admin;
-using BookingApi.Extensions;
+using BookingApi.Helpers;
 using BookingApi.Service;
 using Microsoft.AspNetCore.Mvc;
 using Scalar.AspNetCore;
@@ -15,6 +15,7 @@ builder.Services.ConfigureAuthentication(builder.Configuration);
 builder.Services.ConfigureScopedService();
 builder.Services.ConfigureValidation();
 builder.Services.ConfigureBackgroundServices();
+builder.Services.ConfigureAppOptions(builder.Configuration);
 
 var app = builder.Build();
 

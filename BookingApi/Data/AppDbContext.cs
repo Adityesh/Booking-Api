@@ -9,6 +9,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<BookingEntity> Bookings => Set<BookingEntity>();
     public DbSet<WaitlistEntryEntity> WaitlistEntries => Set<WaitlistEntryEntity>();
     public DbSet<AuditLogEntryEntity> AuditLogEntries => Set<AuditLogEntryEntity>();
+    public DbSet<RefreshTokenEntity> RefreshTokens => Set<RefreshTokenEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -74,6 +75,36 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .WithMany(u => u.Bookings)
             .HasForeignKey(b => b.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<RefreshTokenEntity>()
+            .HasOne(r => r.User)
+            .WithMany()
+            .HasForeignKey(t => t.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<RefreshTokenEntity>()
+            .Property(a => a.RevokedReason)
+            .HasConversion<string>();
+
+        modelBuilder.Entity<RefreshTokenEntity>()
+            .HasIndex(u => u.TokenHash)
+            .IsUnique();
+
+        modelBuilder.Entity<RefreshTokenEntity>()
+            .HasIndex(u => u.FamilyId);
+
+        modelBuilder.Entity<RefreshTokenEntity>()
+            .HasIndex(u => u.UserId);
+
+        modelBuilder.Entity<RefreshTokenEntity>()
+            .HasOne<RefreshTokenEntity>()
+            .WithMany()
+            .HasForeignKey(t => t.ReplacedById)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<RefreshTokenEntity>()
+            .Property(t => t.TokenHash)
+            .HasMaxLength(64);
 
     }
 }

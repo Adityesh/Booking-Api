@@ -18,6 +18,10 @@ public static class Routes
 {
     public const string Register = "/api/auth/register";
     public const string Login = "/api/auth/login";
+    // Exact casing on purpose: routing ignores case, but the refresh cookie's Path=/api/Auth does not, so a browser
+    // only sends the cookie to these spellings.
+    public const string Refresh = "/api/Auth/refresh";
+    public const string Logout = "/api/Auth/logout";
     public const string Resource = "/api/resource";
     public const string Booking = "/api/booking";
     public const string Waitlist = "/api/waitlist";

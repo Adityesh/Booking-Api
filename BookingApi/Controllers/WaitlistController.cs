@@ -1,6 +1,6 @@
 using BookingApi.Data;
 using BookingApi.Dto.Waitlist;
-using BookingApi.Extensions;
+using BookingApi.Helpers;
 using BookingApi.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

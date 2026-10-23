@@ -5,6 +5,7 @@ using BookingApi.Dto.Auth;
 using BookingApi.Service;
 using FluentValidation;
 using FluentValidation.Results;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 
@@ -13,6 +14,7 @@ namespace BookingApi.Tests.Controllers;
 public class AuthControllerTests
 {
     private readonly Mock<IAuthService> _authService = new();
+    private readonly Mock<IRefreshTokenService> _refreshTokenService = new();
     private readonly Mock<IValidator<LoginDto>> _loginValidator = new();
     private readonly Mock<IValidator<RegisterDto>> _registerValidator = new();
     private readonly AuthController _controller;
@@ -20,9 +22,17 @@ public class AuthControllerTests
     private static readonly AuthResponseDto SuccessResponse =
         new(Token: "jwt-token", Username: "alice_01", Role: UserRole.User, ExpiresAt: DateTime.UtcNow.AddHours(1));
 
+    // What the service returns; the controller must put only Response in the body and the refresh token in a cookie.
+    private static readonly AuthSession SuccessSession =
+        new(SuccessResponse, RefreshToken: "raw-refresh-token", RefreshExpiresAt: DateTime.UtcNow.AddDays(14));
+
     public AuthControllerTests()
     {
-        _controller = new AuthController(_authService.Object);
+        _controller = new AuthController(_authService.Object, _refreshTokenService.Object)
+        {
+            // The actions write a Set-Cookie header, which needs a real HttpContext.
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
     }
 
     private static ValidationResult Valid() => new();
@@ -56,7 +66,7 @@ public class AuthControllerTests
         _loginValidator
             .Setup(v => v.ValidateAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
-        _authService.Setup(s => s.LoginAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>())).ReturnsAsync((AuthResponseDto?)null);
+        _authService.Setup(s => s.LoginAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>())).ReturnsAsync((AuthSession?)null);
 
         var result = await _controller.Login(dto, _loginValidator.Object, CancellationToken.None);
 
@@ -70,7 +80,7 @@ public class AuthControllerTests
         _loginValidator
             .Setup(v => v.ValidateAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
-        _authService.Setup(s => s.LoginAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>())).ReturnsAsync(SuccessResponse);
+        _authService.Setup(s => s.LoginAsync(It.IsAny<LoginDto>(), It.IsAny<CancellationToken>())).ReturnsAsync(SuccessSession);
 
         var result = await _controller.Login(dto, _loginValidator.Object, CancellationToken.None);
 
@@ -104,7 +114,7 @@ public class AuthControllerTests
         _registerValidator
             .Setup(v => v.ValidateAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
-        _authService.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>())).ReturnsAsync((AuthResponseDto?)null);
+        _authService.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>())).ReturnsAsync((AuthSession?)null);
 
         var result = await _controller.Register(dto, _registerValidator.Object, CancellationToken.None);
 
@@ -118,7 +128,7 @@ public class AuthControllerTests
         _registerValidator
             .Setup(v => v.ValidateAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
-        _authService.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>())).ReturnsAsync(SuccessResponse);
+        _authService.Setup(s => s.RegisterAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>())).ReturnsAsync(SuccessSession);
 
         var result = await _controller.Register(dto, _registerValidator.Object, CancellationToken.None);
 

@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
-namespace BookingApi.Extensions;
+namespace BookingApi.Helpers;
 
 public static class ConfigureService
 {
@@ -74,6 +74,7 @@ public static class ConfigureService
             services.AddScoped<IAuditLogService, AuditLogService>();
             services.AddScoped<IReportService, ReportService>();
             services.AddScoped<IAdminService, AdminService>();
+            services.AddScoped<IRefreshTokenService, RefreshTokenService>();
         }
 
         public void ConfigureValidation()
@@ -84,6 +85,15 @@ public static class ConfigureService
         public void ConfigureBackgroundServices()
         {
             services.AddHostedService<WaitlistExpirationService>();
+        }
+
+        public void ConfigureAppOptions(IConfiguration config)
+        {
+            services.AddOptions<RefreshTokenOptions>()
+                .Bind(config.GetSection("RefreshToken"))
+                .Validate(o => o.LifetimeDays > 0 && o.AbsoluteLifetimeDays >= o.LifetimeDays && o.ReuseGraceSeconds >= 0,
+                    "RefreshToken settings are invalid")
+                .ValidateOnStart();
         }
     }
 

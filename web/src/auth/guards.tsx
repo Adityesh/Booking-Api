@@ -3,11 +3,21 @@ import { useAuth, type UserRole } from './authContext'
 
 type FromState = { from?: Location } | null
 
-// Signed-out users go to /login, remembering where they were: after a reload (the token lives in memory) or an expired
-// session, signing in again continues on that page. Not after "Sign out": the next person to sign in starts at /.
+// Shown while the session is being restored from the refresh-token cookie (one request, normally well under a second).
+function RestoringSession() {
+  return (
+    <p role="status" className="text-muted-foreground p-6 text-center">
+      Loading…
+    </p>
+  )
+}
+
+// Signed-out users go to /login, remembering where they were: after an expired session, signing in again continues on
+// that page. Not after "Sign out": the next person to sign in starts at /.
 export function RequireAuth() {
-  const { user, lastSignOut } = useAuth()
+  const { isRestoring, user, lastSignOut } = useAuth()
   const location = useLocation()
+  if (isRestoring) return <RestoringSession />
   if (!user) {
     const state: FromState = lastSignOut === 'manual' ? null : { from: location }
     return <Navigate to="/login" replace state={state} />
@@ -34,9 +44,11 @@ export function RequireRole({ role }: { role: UserRole }) {
 
 // For /login and /register. Signing in re-renders this guard, which sends the user back to the page that bounced them
 // to /login (or to /). The login screen therefore never navigates itself after a successful sign-in.
+// While restoring, it waits too: otherwise a reload on /login would flash the form before redirecting.
 export function RedirectIfAuthenticated() {
-  const { user } = useAuth()
+  const { isRestoring, user } = useAuth()
   const from = (useLocation().state as FromState)?.from
+  if (isRestoring) return <RestoringSession />
   if (user) return <Navigate to={from ? `${from.pathname}${from.search}${from.hash}` : '/'} replace />
   return <Outlet />
 }

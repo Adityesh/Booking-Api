@@ -1,6 +1,6 @@
 using BookingApi.Dto;
 using BookingApi.Dto.Resource;
-using BookingApi.Extensions;
+using BookingApi.Helpers;
 using BookingApi.Service;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;

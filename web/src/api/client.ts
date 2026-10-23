@@ -1,5 +1,7 @@
 import createFetchClient, { type Middleware } from 'openapi-fetch'
-import type { paths } from './schema'
+import type { components, paths } from './schema'
+
+type AuthResponse = components['schemas']['AuthResponseDto']
 
 // ---------- errors ----------
 
@@ -112,26 +114,102 @@ export function fieldErrors(error: ApiError | null, field: string): readonly str
 
 // ---------- access token (in memory only, never localStorage) ----------
 
-// A page reload therefore signs the user out; that is the accepted trade-off until refresh-token cookies exist.
+// The access token lives only in this variable. What survives a reload is the refresh-token cookie (HttpOnly, so no
+// script can read it): on startup, and whenever the access token expires, refreshSession() trades it for a new one.
 let accessToken: string | null = null
 const unauthorizedListeners = new Set<() => void>()
+const refreshedListeners = new Set<(session: AuthResponse) => void>()
 
 export function setAccessToken(token: string | null): void {
   accessToken = token
 }
 
-// Called when a request that carried a token gets a 401 (token expired or rejected). Returns an unsubscribe function.
+// Called when the session is over: a request got a 401 and refreshing failed too. Returns an unsubscribe function.
 export function onUnauthorized(listener: () => void): () => void {
   unauthorizedListeners.add(listener)
   return () => unauthorizedListeners.delete(listener)
 }
 
+// Called after every successful refresh, whoever triggered it (startup, the expiry timer, or a 401 retry).
+export function onRefreshed(listener: (session: AuthResponse) => void): () => void {
+  refreshedListeners.add(listener)
+  return () => refreshedListeners.delete(listener)
+}
+
+function endSession(): void {
+  accessToken = null
+  unauthorizedListeners.forEach((listener) => listener())
+}
+
+// ---------- refresh ----------
+
+let inFlightRefresh: Promise<AuthResponse | null> | null = null
+
+// Trades the refresh-token cookie for a new access token (and a rotated cookie).
+//   resolves to the new session  → refreshed
+//   resolves to null             → the API said 401: no cookie, or it was expired/revoked. The session is over.
+//   rejects with an ApiError     → network failure or 5xx. The session may still be fine; callers keep it.
+// Single-flight within the tab: concurrent callers share one request. Across tabs, a Web Lock serialises refreshes, so
+// a second tab only sends its request after the first tab's rotated cookie is in the jar. Two tabs sending the SAME
+// cookie at once is what the server's grace window exists for; this keeps it from happening in the first place.
+export function refreshSession(): Promise<AuthResponse | null> {
+  inFlightRefresh ??= withRefreshLock(requestRefresh).finally(() => {
+    inFlightRefresh = null
+  })
+  return inFlightRefresh
+}
+
+function withRefreshLock<T>(refresh: () => Promise<T>): Promise<T> {
+  // Missing in very old browsers and in jsdom; the single-flight above still covers one tab.
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return navigator.locks.request('bookingapi-refresh', refresh)
+  }
+  return refresh()
+}
+
+async function requestRefresh(): Promise<AuthResponse | null> {
+  let response: Response
+  try {
+    // Plain fetch, not `client`: the refresh must never run through the 401-retry middleware below. The cookie is sent
+    // automatically (same origin, and its Path=/api/Auth matches); the body is empty on purpose.
+    response = await globalThis.fetch('/api/Auth/refresh', { method: 'POST' })
+  } catch {
+    throw new ApiError('network', fallbackMessages.network)
+  }
+  if (response.status === 401) return null
+  if (!response.ok) throw await toApiError(response)
+
+  const session = (await response.json()) as AuthResponse
+  accessToken = session.token
+  refreshedListeners.forEach((listener) => listener(session))
+  return session
+}
+
 // ---------- middleware ----------
+
+// A copy of every request that carries a token, taken before fetch consumes its body, so a 401 can be replayed.
+const replayable = new WeakMap<Request, Request>()
 
 const authMiddleware: Middleware = {
   onRequest({ request }) {
-    if (accessToken) request.headers.set('Authorization', `Bearer ${accessToken}`)
+    if (!accessToken) return
+    request.headers.set('Authorization', `Bearer ${accessToken}`)
+    replayable.set(request, request.clone())
   },
+}
+
+// The access token expired (or was rejected): get a fresh one and send the request once more.
+// Returns null when there is no way to continue the session.
+async function replayWithFreshToken(request: Request): Promise<Response | null> {
+  const copy = replayable.get(request)
+  if (!copy) return null
+  const sentToken = request.headers.get('Authorization')?.slice('Bearer '.length)
+  // Several requests can fail with the same expired token. Once one of them has refreshed, the rest just resend with
+  // the new token instead of rotating the cookie again.
+  const token = accessToken && accessToken !== sentToken ? accessToken : (await refreshSession())?.token
+  if (!token) return null
+  copy.headers.set('Authorization', `Bearer ${token}`)
+  return globalThis.fetch(copy)
 }
 
 const errorMiddleware: Middleware = {
@@ -142,14 +220,21 @@ const errorMiddleware: Middleware = {
   async onResponse({ request, response }) {
     if (response.ok) return
 
-    const error = await toApiError(response)
-    // Only a request that actually sent a token means "the session is over". A 401 from login (wrong password)
-    // carries no token and must not trigger a global sign-out.
-    if (error.kind === 'unauthorized' && request.headers.has('Authorization')) {
-      accessToken = null
-      unauthorizedListeners.forEach((listener) => listener())
+    // Only a request that actually sent a token means "the access token is no longer good". A 401 from login (wrong
+    // password) carries no token and must never trigger a refresh or a sign-out.
+    if (response.status === 401 && request.headers.has('Authorization')) {
+      // Throws a network ApiError if the refresh itself can't reach the server: the session is kept for the next try.
+      const replayed = await replayWithFreshToken(request)
+      if (replayed?.ok) return replayed
+      if (!replayed || replayed.status === 401) {
+        endSession()
+        throw await toApiError(replayed ?? response)
+      }
+      // The retry got past authentication but failed for another reason (403, 404, ...): report that error instead.
+      throw await toApiError(replayed)
     }
-    throw error
+
+    throw await toApiError(response)
   },
 
   // Only runs when fetch itself rejects. Aborts are left alone: React Query cancels queries by aborting their signal

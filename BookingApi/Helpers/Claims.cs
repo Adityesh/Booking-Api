@@ -1,6 +1,6 @@
 using System.Security.Claims;
 
-namespace BookingApi.Extensions;
+namespace BookingApi.Helpers;
 
 public static class Claims
 {

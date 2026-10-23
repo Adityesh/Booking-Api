@@ -12,15 +12,20 @@ export type AuthUser = {
   expiresAt: string
 }
 
-// 'manual': the user pressed "Sign out". 'expired': a request with the token got a 401. null: never signed in yet
-// (first visit, or a reload, since the token lives in memory).
+// 'manual': the user pressed "Sign out" (in this tab or another one). 'expired': the session could not be refreshed
+// (the refresh token expired or was revoked). null: not signed out in this page's lifetime (first visit, or a reload
+// with no session to restore).
 export type SignOutReason = 'manual' | 'expired' | null
 
 export type AuthContextValue = {
+  // True only while the app starts and tries to restore the session from the refresh-token cookie. The guards wait for
+  // it: deciding "signed out" before it settles would bounce a signed-in user to /login on every reload.
+  isRestoring: boolean
   user: AuthUser | null
   lastSignOut: SignOutReason
   signIn: (response: AuthResponse) => void
-  signOut: () => void
+  // Revokes the refresh token on the server, then clears the session locally (also in this browser's other tabs).
+  signOut: () => Promise<void>
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null)

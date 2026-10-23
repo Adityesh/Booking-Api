@@ -29,6 +29,7 @@ beforeEach(() => {
 
 function renderAs(role: UserRole, ui: React.ReactElement) {
   const auth: AuthContextValue = {
+    isRestoring: false,
     user: { username: 'someone', role, expiresAt: new Date(Date.now() + HOUR).toISOString() },
     lastSignOut: null,
     signIn: vi.fn(),
