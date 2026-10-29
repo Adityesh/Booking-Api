@@ -4,10 +4,11 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
 COPY BookingApi/BookingApi.csproj BookingApi/
+COPY BookingApi.Contracts/BookingApi.Contracts.csproj BookingApi.Contracts/
 RUN dotnet restore BookingApi/BookingApi.csproj
 
 COPY BookingApi/ BookingApi/
-
+COPY BookingApi.Contracts/ BookingApi.Contracts
 RUN dotnet publish BookingApi/BookingApi.csproj -c Release -o /app/publish --no-restore
 
 # RUN MIGRATIONS FOR DB
