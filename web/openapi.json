@@ -1376,11 +1376,15 @@
       "RegisterDto": {
         "required": [
           "username",
+          "email",
           "password"
         ],
         "type": "object",
         "properties": {
           "username": {
+            "type": "string"
+          },
+          "email": {
             "type": "string"
           },
           "password": {

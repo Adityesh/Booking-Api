@@ -33,12 +33,13 @@ export function RegisterPage() {
       return
     }
     setConfirmError(null)
-    register.mutate({ username: String(form.get('username')), password })
+    register.mutate({ username: String(form.get('username')), email: String(form.get('email')).trim(), password })
   }
 
   const { error } = register
   // 409 "Username already taken" belongs to the username field, next to the 400 messages for it.
   const usernameErrors = [...fieldErrors(error, 'username'), ...(error?.kind === 'conflict' ? [error.message] : [])]
+  const emailErrors = fieldErrors(error, 'email')
   const passwordErrors = fieldErrors(error, 'password')
   const formError = error && error.kind !== 'validation' && error.kind !== 'conflict' ? error.message : null
 
@@ -46,7 +47,7 @@ export function RegisterPage() {
     <div className="space-y-6">
       <div className="space-y-1">
         <h1 className="font-heading text-xl font-semibold">Create an account</h1>
-        <p className="text-muted-foreground text-sm">Choose a username and a password.</p>
+        <p className="text-muted-foreground text-sm">Choose a username, add your email and pick a password.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -68,6 +69,20 @@ export function RegisterPage() {
               3–30 characters: letters, digits, _ . or -. Usernames are case-sensitive.
             </FieldDescription>
             <FieldError errors={asFieldErrors(usernameErrors)} />
+          </Field>
+          <Field data-invalid={emailErrors.length > 0 || undefined}>
+            <FieldLabel htmlFor="email">Email</FieldLabel>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              required
+              aria-invalid={emailErrors.length > 0 || undefined}
+              aria-describedby="email-hint"
+            />
+            <FieldDescription id="email-hint">Used for booking and waitlist notifications.</FieldDescription>
+            <FieldError errors={asFieldErrors(emailErrors)} />
           </Field>
           <Field data-invalid={passwordErrors.length > 0 || undefined}>
             <FieldLabel htmlFor="password">Password</FieldLabel>

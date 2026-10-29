@@ -1083,6 +1083,7 @@ export interface components {
         };
         RegisterDto: {
             username: string;
+            email: string;
             password: string;
         };
         ResourceResponseDto: {
