@@ -21,6 +21,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             .HasIndex(u => u.Username)
             .IsUnique();
 
+        modelBuilder.Entity<UserEntity>()
+            .Property(x => x.Email)
+            .HasMaxLength(254);
+
         modelBuilder.Entity<ResourceEntity>()
             .Property(b => b.Type)
             .HasConversion<string>();

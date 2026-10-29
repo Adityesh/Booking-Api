@@ -9,6 +9,7 @@ public class AuthValidatorTests
 {
     private const string ValidUsername = "alice_01";
     private const string ValidPassword = "s3cret_pw";
+    private const string ValidEmail = "alice@example.com";
 
     private readonly RegisterDtoValidator _register = new();
     private readonly LoginDtoValidator _login = new();
@@ -22,7 +23,7 @@ public class AuthValidatorTests
     [InlineData("User123")]
     public void Register_ValidUsername_HasNoUsernameError(string username)
     {
-        var result = _register.TestValidate(new RegisterDto(username, ValidPassword));
+        var result = _register.TestValidate(new RegisterDto(Username: username, Email: ValidEmail, Password: ValidPassword));
 
         result.ShouldNotHaveValidationErrorFor(x => x.Username);
     }
@@ -40,7 +41,7 @@ public class AuthValidatorTests
     [InlineData("alice\n")]
     public void Register_InvalidUsername_HasUsernameError(string username)
     {
-        var result = _register.TestValidate(new RegisterDto(username, ValidPassword));
+        var result = _register.TestValidate(new RegisterDto(Username: username, Email: ValidEmail, Password: ValidPassword));
 
         result.ShouldHaveValidationErrorFor(x => x.Username);
     }
@@ -48,7 +49,7 @@ public class AuthValidatorTests
     [Fact]
     public void Register_UsernameAtMaxLength_IsValid()
     {
-        var result = _register.TestValidate(new RegisterDto(new string('a', 30), ValidPassword));
+        var result = _register.TestValidate(new RegisterDto(Username: new string('a', 30), Email: ValidEmail, Password: ValidPassword));
 
         result.ShouldNotHaveValidationErrorFor(x => x.Username);
     }
@@ -56,7 +57,7 @@ public class AuthValidatorTests
     [Fact]
     public void Register_UsernameOverMaxLength_IsInvalid()
     {
-        var result = _register.TestValidate(new RegisterDto(new string('a', 31), ValidPassword));
+        var result = _register.TestValidate(new RegisterDto(Username: new string('a', 31), Email: ValidEmail, Password: ValidPassword));
 
         result.ShouldHaveValidationErrorFor(x => x.Username);
     }
@@ -70,7 +71,7 @@ public class AuthValidatorTests
     [InlineData("Correct_Horse_Battery")]
     public void Register_ValidPassword_HasNoPasswordError(string password)
     {
-        var result = _register.TestValidate(new RegisterDto(ValidUsername, password));
+        var result = _register.TestValidate(new RegisterDto(Username: ValidUsername, Email: ValidEmail, Password: password));
 
         result.ShouldNotHaveValidationErrorFor(x => x.Password);
     }
@@ -83,7 +84,7 @@ public class AuthValidatorTests
     [InlineData("Password 1")]          // a space is not an allowed special character
     public void Register_InvalidPassword_HasPasswordError(string password)
     {
-        var result = _register.TestValidate(new RegisterDto(ValidUsername, password));
+        var result = _register.TestValidate(new RegisterDto(Username: ValidUsername, Email: ValidEmail, Password: password));
 
         result.ShouldHaveValidationErrorFor(x => x.Password);
     }
@@ -93,7 +94,7 @@ public class AuthValidatorTests
     {
         var password = new string('a', 71) + "_";   // 72 characters
 
-        var result = _register.TestValidate(new RegisterDto(ValidUsername, password));
+        var result = _register.TestValidate(new RegisterDto(Username: ValidUsername, Email: ValidEmail, Password: password));
 
         result.ShouldNotHaveValidationErrorFor(x => x.Password);
     }
@@ -103,7 +104,7 @@ public class AuthValidatorTests
     {
         var password = new string('a', 72) + "_";   // 73 characters
 
-        var result = _register.TestValidate(new RegisterDto(ValidUsername, password));
+        var result = _register.TestValidate(new RegisterDto(Username: ValidUsername, Email: ValidEmail, Password: password));
 
         result.ShouldHaveValidationErrorFor(x => x.Password);
     }
@@ -111,7 +112,7 @@ public class AuthValidatorTests
     [Fact]
     public void Register_PasswordWithoutSpecialCharacter_ReportsTheSpecialCharacterMessage()
     {
-        var result = _register.TestValidate(new RegisterDto(ValidUsername, "password123"));
+        var result = _register.TestValidate(new RegisterDto(Username: ValidUsername, Email: ValidEmail, Password: "password123"));
 
         result.ShouldHaveValidationErrorFor(x => x.Password)
             .WithErrorMessage("Password must contain at least one hyphen (-), underscore (_), or period (.).");
@@ -120,7 +121,7 @@ public class AuthValidatorTests
     [Fact]
     public void Register_ValidUsernameAndPassword_IsValid()
     {
-        var result = _register.TestValidate(new RegisterDto(ValidUsername, ValidPassword));
+        var result = _register.TestValidate(new RegisterDto(Username: ValidUsername, Email: ValidEmail, Password: ValidPassword));
 
         result.ShouldNotHaveAnyValidationErrors();
     }

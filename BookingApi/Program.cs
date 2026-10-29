@@ -38,8 +38,9 @@ if (args.Length > 0 && args[0].Equals("create-admin", StringComparison.OrdinalIg
 
         var userName = app.Configuration["CreateAdmin:Username"] ?? "";
         var password = app.Configuration["CreateAdmin:Password"] ?? "";
+        var email = app.Configuration["CreateAdmin:Email"] ?? "";
 
-        var result = await adminService.CreateAdmin(userName, password, cts.Token);
+        var result = await adminService.CreateAdmin(userName, password, email, cts.Token);
 
         switch (result)
         {
@@ -57,7 +58,7 @@ if (args.Length > 0 && args[0].Equals("create-admin", StringComparison.OrdinalIg
                 Environment.ExitCode = 1;
                 break;
             default:
-                Console.Error.WriteLine("Invalid username or password. Check CreateAdmin__Username and CreateAdmin__Password.");
+                Console.Error.WriteLine("Invalid username, email or password. Check CreateAdmin__Username, CreateAdmin__Password and CreateAdmin__Email.");
                 Environment.ExitCode = 1;
                 break;
         }

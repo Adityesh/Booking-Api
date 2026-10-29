@@ -7,6 +7,7 @@ public class UserEntity
     public string PasswordHash { get; set; } = string.Empty;
     public UserRole Role { get; set; }
     public bool IsActive { get; set; } = true;
+    public string? Email { get; set; }
 
     public List<BookingEntity> Bookings { get; set; } = [];
 }

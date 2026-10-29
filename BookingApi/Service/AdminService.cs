@@ -9,10 +9,10 @@ namespace BookingApi.Service;
 
 public class AdminService(AppDbContext context, IValidator<RegisterDto> validator) : IAdminService
 {
-    public async Task<AdminCreationResult> CreateAdmin(string userName, string password, CancellationToken token = default)
+    public async Task<AdminCreationResult> CreateAdmin(string userName, string email, string password, CancellationToken token = default)
     {
         // Same rules as public registration (format, password rules, BCrypt 72-byte limit).
-        var validation = await validator.ValidateAsync(new RegisterDto( userName, password), token);
+        var validation = await validator.ValidateAsync(new RegisterDto( userName, email, password), token);
         if (!validation.IsValid) return AdminCreationResult.InvalidInput;
 
         if (await context.Users.AnyAsync(x => x.Role == UserRole.Admin, token))
@@ -26,7 +26,8 @@ public class AdminService(AppDbContext context, IValidator<RegisterDto> validato
         {
             Username = userName,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
-            Role = UserRole.Admin
+            Role = UserRole.Admin,
+            Email = email,
         });
 
         try

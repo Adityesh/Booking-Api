@@ -24,6 +24,14 @@ public class RegisterDtoValidator : AbstractValidator<RegisterDto>
             .WithMessage("Password cannot be longer than 72 characters")
             .Matches(@"[-_.]")
             .WithMessage("Password must contain at least one hyphen (-), underscore (_), or period (.).");
+
+        RuleFor(x => x.Email)
+            .NotEmpty()
+            .WithMessage("Email cannot be empty")
+            .EmailAddress()
+            .WithMessage("Email is invalid")
+            .MaximumLength(254)
+            .WithMessage("Email Address too long");
     }
 }
 

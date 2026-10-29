@@ -4,5 +4,5 @@ namespace BookingApi.Service;
 
 public interface IAdminService
 {
-    public Task<AdminCreationResult> CreateAdmin(string userName, string password, CancellationToken token);
+    public Task<AdminCreationResult> CreateAdmin(string userName, string password, string email, CancellationToken token);
 }

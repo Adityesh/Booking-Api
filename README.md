@@ -94,12 +94,12 @@ dotnet run --project BookingApi
 **4. Create the first admin.** There is deliberately no public way to become an admin (registration always creates a `User`). The first admin is created by an operator with a command built into the same executable:
 
 ```bash
-CreateAdmin__Username="boss_01" CreateAdmin__Password="a-strong_password" \
+CreateAdmin__Username="boss_01" CreateAdmin__Password="a-strong_password" CreateAdmin__Email="boss@example.com" \
   dotnet run --project BookingApi -- create-admin
 ```
 
 - Credentials come from the environment (or configuration), **never from command-line arguments**, which leak into shell history and process lists.
-- The password follows the same rules as registration and is never printed.
+- The username, email and password follow the same rules as registration; the password is never printed.
 - It is idempotent: if an admin already exists it says so and exits `0`, so it is safe to run on every deploy. Exit code `1` means a real failure (invalid input, username taken, database error).
 - The command builds the app but never calls `Run()`, so no port is opened and the background job never starts.
 
@@ -122,6 +122,7 @@ Create the first admin, then log in:
 ```bash
 docker compose run --rm \
   -e CreateAdmin__Username=boss_01 -e CreateAdmin__Password='a-strong_password' \
+  -e CreateAdmin__Email=boss@example.com \
   api create-admin
 ```
 

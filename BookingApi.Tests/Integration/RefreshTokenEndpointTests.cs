@@ -149,7 +149,7 @@ public class RefreshTokenEndpointTests(PostgresFixture fixture) : ApiTestBase(fi
         using var client = CreateCookielessClient();
         var username = NewUsername();
 
-        var response = await client.PostAsJsonAsync(Routes.Register, new { username, password = Password });
+        var response = await client.PostAsJsonAsync(Routes.Register, new { username, email = Email, password = Password });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var cookie = RefreshCookie(response);

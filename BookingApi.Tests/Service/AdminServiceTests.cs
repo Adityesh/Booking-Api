@@ -16,6 +16,7 @@ public class AdminServiceTests(PostgresFixture fixture) : IAsyncLifetime
 {
     private const string ValidUsername = "alice_01";
     private const string ValidPassword = "s3cret_pw";
+    private const string ValidEmail = "alice@example.com";
 
     private string _databaseName = "";
     private string _connectionString = "";
@@ -65,7 +66,7 @@ public class AdminServiceTests(PostgresFixture fixture) : IAsyncLifetime
     private async Task<AdminCreationResult> CreateAdminAsync(string username, string password)
     {
         await using var context = CreateContext();
-        return await CreateService(context).CreateAdmin(username, password);
+        return await CreateService(context).CreateAdmin(userName: username, password: password, email: ValidEmail);
     }
 
     private async Task SeedUserAsync(string username, UserRole role)
@@ -231,7 +232,7 @@ public class AdminServiceTests(PostgresFixture fixture) : IAsyncLifetime
         await using (var context = CreateContext())
         {
             await Assert.ThrowsAnyAsync<OperationCanceledException>(
-                () => CreateService(context).CreateAdmin(ValidUsername, ValidPassword, cts.Token));
+                () => CreateService(context).CreateAdmin(userName: ValidUsername, password: ValidPassword, email: ValidEmail, token: cts.Token));
         }
 
         await using var check = CreateContext();

@@ -20,7 +20,7 @@ public class AuthenticationIntegrationTests(PostgresFixture fixture) : ApiTestBa
         using var client = CreateClient();
         var username = NewRegisterUsername();
 
-        var response = await client.PostAsJsonAsync(Routes.Register, new { username, password = Password });
+        var response = await client.PostAsJsonAsync(Routes.Register, new { username, email = Email, password = Password });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>(ApiJson);
@@ -39,8 +39,8 @@ public class AuthenticationIntegrationTests(PostgresFixture fixture) : ApiTestBa
         using var client = CreateClient();
         var username = NewRegisterUsername();
 
-        var first = await client.PostAsJsonAsync(Routes.Register, new { username, password = Password });
-        var second = await client.PostAsJsonAsync(Routes.Register, new { username, password = Password });
+        var first = await client.PostAsJsonAsync(Routes.Register, new { username, email = Email, password = Password });
+        var second = await client.PostAsJsonAsync(Routes.Register, new { username, email = Email, password = Password });
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
@@ -55,7 +55,7 @@ public class AuthenticationIntegrationTests(PostgresFixture fixture) : ApiTestBa
     {
         using var client = CreateClient();
 
-        var response = await client.PostAsJsonAsync(Routes.Register, new { username, password });
+        var response = await client.PostAsJsonAsync(Routes.Register, new { username, email = Email, password });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         await using var context = CreateContext();
@@ -69,7 +69,7 @@ public class AuthenticationIntegrationTests(PostgresFixture fixture) : ApiTestBa
         using var client = CreateClient();
         var username = NewRegisterUsername();
 
-        var response = await client.PostAsJsonAsync(Routes.Register, new { username, password = Password, role = "Admin" });
+        var response = await client.PostAsJsonAsync(Routes.Register, new { username, email = Email, password = Password, role = "Admin" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var auth = await response.Content.ReadFromJsonAsync<AuthResponseDto>(ApiJson);

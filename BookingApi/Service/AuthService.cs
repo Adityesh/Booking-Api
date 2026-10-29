@@ -31,7 +31,8 @@ public class AuthService(AppDbContext context, IConfiguration config, IRefreshTo
         {
             Username = dto.Username,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-            Role = UserRole.User
+            Role = UserRole.User,
+            Email = dto.Email
         };
 
         context.Users.Add(newUser);

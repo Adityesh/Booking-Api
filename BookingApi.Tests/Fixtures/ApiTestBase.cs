@@ -38,6 +38,7 @@ public sealed record AuthedUser(int Id, string Username, string Token);
 public abstract class ApiTestBase : IDisposable
 {
     protected const string Password = "Test_pass1";
+    protected const string Email = "test@example.com";
 
     // The API's wire format: camelCase web defaults plus enums as strings ("User", not 0). Deserialize responses with
     // this, otherwise any DTO with an enum (AuthResponseDto.Role, ...) fails with a JsonException.

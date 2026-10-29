@@ -93,7 +93,7 @@ public class AuthControllerTests
     [Fact]
     public async Task Register_InvalidInput_Returns400_AndNeverCallsService()
     {
-        var dto = new RegisterDto("ab", "short");
+        var dto = new RegisterDto(Username: "ab", Email: "alice@example.com", Password: "short");
         _registerValidator
             .Setup(v => v.ValidateAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Invalid("Password", "Password must contain at least one hyphen (-), underscore (_), or period (.)."));
@@ -110,7 +110,7 @@ public class AuthControllerTests
     [Fact]
     public async Task Register_UsernameTaken_Returns409()
     {
-        var dto = new RegisterDto("alice_01", "s3cret_pw");
+        var dto = new RegisterDto(Username: "alice_01", Email: "alice@example.com", Password: "s3cret_pw");
         _registerValidator
             .Setup(v => v.ValidateAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
@@ -124,7 +124,7 @@ public class AuthControllerTests
     [Fact]
     public async Task Register_ValidInput_Returns200WithTheAuthResponse()
     {
-        var dto = new RegisterDto("alice_01", "s3cret_pw");
+        var dto = new RegisterDto(Username: "alice_01", Email: "alice@example.com", Password: "s3cret_pw");
         _registerValidator
             .Setup(v => v.ValidateAsync(It.IsAny<RegisterDto>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Valid());
